@@ -51,5 +51,6 @@ simulation:
     multi_origin_anycast: 10
     multi_origin_ddos_scrubbing: 8
     policy_change_roa_first: 8
-    policy_change_roa_lag: 8
+    policy_change_roa_lag_inventory_updated: 6
+    policy_change_roa_lag_inventory_stale: 6
     te_more_specific: 14
