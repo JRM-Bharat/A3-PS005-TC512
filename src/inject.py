@@ -1,10 +1,20 @@
-"""Synthetic BGP Anomaly and Benign Scenario Generator.
+"""Synthetic BGP Anomaly and Benign Scenario Generator (v2).
 
-Generates realistic background traffic and injected labeled anomaly and benign scenarios.
-Produces:
+Generates realistic background traffic and injected labeled anomaly and benign scenarios:
   - data/feed_replay.csv: Normalized chronological BGP update feed
-  - data/labels.csv: Ground-truth event labels with scenario tags and difficulty
-  - data/manifest.json: Run configuration, seed, and summary statistics
+  - data/labels.csv: Ground-truth event labels with scenario tags, difficulty, and expected alert types
+  - data/manifest.json: Run configuration, seed, changelog, and summary statistics
+
+Changelog (v2):
+  - Made loose_maxlength_hijack a genuine hard anomaly: attacker forges legitimate origin ASN
+    on a more-specific within ROA maxLength, causing ROV to be Valid and origin in inventory.
+    The rule baseline is expected to miss these.
+  - Split policy lag into two distinct scenarios:
+      * policy_change_roa_lag_inventory_updated (origin in inventory, ROV Invalid -> expected ROA_INVALID)
+      * policy_change_roa_lag_inventory_stale (origin not in inventory, ROV Invalid -> known FP ORIGIN_HIJACK)
+  - Added ~1.5% realistic third-party RFC 6811 Invalid background routes outside operator inventory
+    tagged as THIRD_PARTY_INVALID.
+  - Balanced peer novelty across benign TE and forged anomalies to prevent trivial feature leakage.
 """
 
 from __future__ import annotations
@@ -66,10 +76,13 @@ class ScenarioInjector:
         self.end_time = self.start_time + duration_hrs * 3600.0
 
         self.background_count = sim_cfg.get("background_count", 3000)
-        self.peers = sim_cfg.get(
+        self.known_peers = sim_cfg.get(
             "peers",
             ["198.32.160.1", "198.32.176.1", "198.32.124.1", "206.108.34.1"],
         )
+        self.novel_peer = "198.32.240.1"  # Novel peer observed for feature analysis
+        self.all_peers = self.known_peers + [self.novel_peer]
+
         self.scenario_counts = sim_cfg.get("scenario_counts", {})
 
         # Snapshot epoch timestamps
@@ -112,7 +125,7 @@ class ScenarioInjector:
         # ---------------------------------------------------------
 
         # 1.1 exact_origin_hijack
-        count = self.scenario_counts.get("exact_origin_hijack", 10)
+        count = self.scenario_counts.get("exact_origin_hijack", 12)
         scenario_stats["exact_origin_hijack"] = count
         inv_items = self.inventory.all_items()
         for i in range(count):
@@ -140,28 +153,23 @@ class ScenarioInjector:
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
+            peer = self.rng.choice(self.known_peers)
             updates.append(BGPUpdate(t_start, item.prefix, hijack_asn, peer, "announce"))
-            # Propagation to another peer
-            updates.append(BGPUpdate(t_start + 15.0, item.prefix, hijack_asn, self.rng.choice(self.peers), "announce"))
-            # Withdrawal upon remediation
+            updates.append(BGPUpdate(t_start + 15.0, item.prefix, hijack_asn, self.rng.choice(self.known_peers), "announce"))
             updates.append(BGPUpdate(t_end, item.prefix, hijack_asn, peer, "withdraw"))
 
         # 1.2 subprefix_hijack
-        count = self.scenario_counts.get("subprefix_hijack", 10)
+        count = self.scenario_counts.get("subprefix_hijack", 12)
         scenario_stats["subprefix_hijack"] = count
         for i in range(count):
-            # Target /22 or /15 prefixes to generate more-specific /24 or /25 subprefixes
             t_start = self._random_time_in_range(self.start_time + 1800, self.end_time - 3600)
             duration = self.rng.randint(600, 1800)
             t_end = t_start + duration
             hijack_asn = 65600 + self.rng.randint(1, 999)
 
             if i % 2 == 0:
-                # Subprefix of 198.51.100.0/22 -> /25
                 sub_net = ipaddress.ip_network(f"198.51.100.{128 if (i % 4 == 0) else 0}/25")
             else:
-                # Subprefix of 198.18.0.0/15 -> /24
                 sub_net = ipaddress.ip_network(f"198.18.{i + 10}.0/24")
 
             eid = f"evt-{event_counter:04d}"
@@ -180,22 +188,20 @@ class ScenarioInjector:
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
+            peer = self.rng.choice(self.known_peers)
             updates.append(BGPUpdate(t_start, sub_net, hijack_asn, peer, "announce"))
-            updates.append(BGPUpdate(t_start + 20.0, sub_net, hijack_asn, self.rng.choice(self.peers), "announce"))
+            updates.append(BGPUpdate(t_start + 20.0, sub_net, hijack_asn, self.rng.choice(self.known_peers), "announce"))
             updates.append(BGPUpdate(t_end, sub_net, hijack_asn, peer, "withdraw"))
 
         # 1.3 hijack_after_roa_change (tests snapshot time alignment boundary)
         count = self.scenario_counts.get("hijack_after_roa_change", 8)
         scenario_stats["hijack_after_roa_change"] = count
         for i in range(count):
-            # Occurs within 2 to 10 minutes AFTER snapshot 2 (06:00) or snapshot 3 (12:00)
             boundary = self.snap2_time if (i % 2 == 0) else self.snap3_time
             t_start = boundary + self.rng.randint(120, 600)
             t_end = t_start + self.rng.randint(600, 1800)
             hijack_asn = 65700 + i
 
-            # Target prefix that migrated or had ROA update
             target_prefix = ipaddress.ip_network("203.0.113.0/24" if (i % 2 == 0) else "198.51.100.0/22")
 
             eid = f"evt-{event_counter:04d}"
@@ -214,20 +220,21 @@ class ScenarioInjector:
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
+            peer = self.rng.choice(self.known_peers)
             updates.append(BGPUpdate(t_start, target_prefix, hijack_asn, peer, "announce"))
             updates.append(BGPUpdate(t_end, target_prefix, hijack_asn, peer, "withdraw"))
 
-        # 1.4 loose_maxlength_hijack (ROA allows maxLength 24; attacker uses neighbor ASN; hard)
+        # 1.4 loose_maxlength_hijack (Genuine hard anomaly: forged legitimate origin within maxLength)
+        # Attacker announces a more-specific /24 under 198.18.0.0/15 forging legitimate origin AS64510!
+        # Result: ROV is VALID and origin is in inventory -> Baseline rule misses it (NO ALERT).
         count = self.scenario_counts.get("loose_maxlength_hijack", 8)
         scenario_stats["loose_maxlength_hijack"] = count
         for i in range(count):
             t_start = self._random_time_in_range(self.start_time + 3600, self.end_time - 3600)
             t_end = t_start + self.rng.randint(900, 2400)
-            # Enterprise Campus 198.18.0.0/15 allows AS64510 up to maxLength 24
-            sub_prefix = ipaddress.ip_network(f"198.18.{100 + i}.0/24")
-            # Attacker neighbor ASN (e.g. 64511 or 64509)
-            neighbor_asn = 64511
+            sub_prefix = ipaddress.ip_network(f"198.18.{200 + i}.0/24")
+            # Forged legitimate origin: AS64510
+            forged_origin = 64510
 
             eid = f"evt-{event_counter:04d}"
             event_counter += 1
@@ -236,18 +243,19 @@ class ScenarioInjector:
                 start_time=t_start,
                 end_time=t_end,
                 prefix=str(sub_prefix),
-                origin_asn=neighbor_asn,
-                type="SUBPREFIX_HIJACK",
+                origin_asn=forged_origin,
+                type="FORGED_ORIGIN_SUBPREFIX",
                 benign=False,
                 scenario="loose_maxlength_hijack",
                 difficulty="hard",
-                expected_alert_type="SUBPREFIX_HIJACK",
+                expected_alert_type="NONE",  # Expected to be missed by baseline rules!
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
-            updates.append(BGPUpdate(t_start, sub_prefix, neighbor_asn, peer, "announce"))
-            updates.append(BGPUpdate(t_end, sub_prefix, neighbor_asn, peer, "withdraw"))
+            # Half from novel peer, half from known peer to prevent trivial leakage
+            peer = self.novel_peer if (i % 2 == 0) else self.rng.choice(self.known_peers)
+            updates.append(BGPUpdate(t_start, sub_prefix, forged_origin, peer, "announce"))
+            updates.append(BGPUpdate(t_end, sub_prefix, forged_origin, peer, "withdraw"))
 
         # ---------------------------------------------------------
         # 2. Benign Scenarios (benign = True)
@@ -257,9 +265,9 @@ class ScenarioInjector:
         count = self.scenario_counts.get("multi_origin_anycast", 10)
         scenario_stats["multi_origin_anycast"] = count
         for i in range(count):
-            t_start = self._random_time_in_range(self.start_time + 1200, self.end_time - 1800)
+            # Both 64500 and 64501 are authorized in ROA snapshot 2 and 3 (from 06:00:00Z onwards)
+            t_start = self._random_time_in_range(self.snap2_time + 1200, self.end_time - 1800)
             t_end = t_start + 1800
-            # FinTech Anycast 192.0.2.0/24 alternates between AS64500 and AS64501
             origin = 64500 if (i % 2 == 0) else 64501
             net = ipaddress.ip_network("192.0.2.0/24")
 
@@ -279,24 +287,20 @@ class ScenarioInjector:
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
+            peer = self.rng.choice(self.known_peers)
             updates.append(BGPUpdate(t_start, net, origin, peer, "announce"))
 
         # 2.2 multi_origin_ddos_scrubbing: provider ASN announces during mitigation window
-        # Authorized by ROA but possibly not in inventory -> triggers INVENTORY_MISMATCH (benign FP)
+        # Authorized by ROA but not in inventory -> triggers INVENTORY_MISMATCH (benign FP)
         count = self.scenario_counts.get("multi_origin_ddos_scrubbing", 8)
         scenario_stats["multi_origin_ddos_scrubbing"] = count
+        # Space them by at least 400s so each event triggers a distinct alert without dedup suppression
+        ddos_base_time = self.snap2_time + 1200.0
         for i in range(count):
-            t_start = self._random_time_in_range(self.start_time + 3600, self.end_time - 3600)
-            t_end = t_start + self.rng.randint(600, 1800)
-            # Regional-ISP-Alpha migrated to AS64498 in ROA, but inventory only has 64496!
+            t_start = ddos_base_time + (i * 420.0)
+            t_end = t_start + 300.0
             net = ipaddress.ip_network("203.0.113.0/24")
             scrubber_asn = 64498  # Valid in ROA after 06:00, but outside initial inventory
-
-            # Place it strictly after 06:00 so ROV is Valid
-            if t_start < self.snap2_time:
-                t_start += (self.snap2_time - self.start_time) + 600
-                t_end = t_start + 1200
 
             eid = f"evt-{event_counter:04d}"
             event_counter += 1
@@ -314,7 +318,7 @@ class ScenarioInjector:
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
+            peer = self.rng.choice(self.known_peers)
             updates.append(BGPUpdate(t_start, net, scrubber_asn, peer, "announce"))
             updates.append(BGPUpdate(t_end, net, scrubber_asn, peer, "withdraw"))
 
@@ -322,8 +326,6 @@ class ScenarioInjector:
         count = self.scenario_counts.get("policy_change_roa_first", 8)
         scenario_stats["policy_change_roa_first"] = count
         for i in range(count):
-            # ROA snapshot 3 publishes at 12:00:00Z authorizing AS13336 on 198.51.100.0/22
-            # Announcement occurs at 13:00+ (after snapshot update)
             t_start = self.snap3_time + 3600 + (i * 900)
             t_end = t_start + 1800
             net = ipaddress.ip_network("198.51.100.0/22")
@@ -345,18 +347,49 @@ class ScenarioInjector:
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
+            peer = self.rng.choice(self.known_peers)
             updates.append(BGPUpdate(t_start, net, origin, peer, "announce"))
 
-        # 2.4 policy_change_roa_lag: new origin announces BEFORE ROA snapshot publishes it
-        # Temporarily ROV Invalid -> triggers ROA_INVALID (benign FP)
-        count = self.scenario_counts.get("policy_change_roa_lag", 8)
-        scenario_stats["policy_change_roa_lag"] = count
-        for i in range(count):
-            # Snapshot 2 is at 06:00:00Z. Announcement starts at 05:30:00Z (30 min prior)
-            t_start = self.snap2_time - self.rng.randint(600, 1800) + (i * 30)
-            t_end = t_start + 2400
-            # 203.0.113.0/24 announced by AS64498 before snapshot 2
+        # 2.4A policy_change_roa_lag_inventory_updated:
+        # Origin IS in inventory, but ROA lags -> ROV Invalid -> expected ROA_INVALID (medium severity)
+        count_lag_inv = self.scenario_counts.get("policy_change_roa_lag_inventory_updated", 6)
+        scenario_stats["policy_change_roa_lag_inventory_updated"] = count_lag_inv
+        lag_inv_base = self.snap3_time - 2400.0  # Before 12:00:00Z snapshot
+        for i in range(count_lag_inv):
+            t_start = lag_inv_base + (i * 360.0)  # Spaced > 300s to avoid dedup suppression
+            t_end = t_start + 300.0
+            # 198.51.100.0/22 has AS13336 in inventory, but ROA adds it only at 12:00:00Z
+            net = ipaddress.ip_network("198.51.100.0/22")
+            origin = 13336
+
+            eid = f"evt-{event_counter:04d}"
+            event_counter += 1
+            evt = LabelledEvent(
+                event_id=eid,
+                start_time=t_start,
+                end_time=t_end,
+                prefix=str(net),
+                origin_asn=origin,
+                type="POLICY_LAG_UPDATED_INV",
+                benign=True,
+                scenario="policy_change_roa_lag_inventory_updated",
+                difficulty="hard",
+                expected_alert_type="ROA_INVALID",
+            )
+            events.append(evt)
+
+            peer = self.rng.choice(self.known_peers)
+            updates.append(BGPUpdate(t_start, net, origin, peer, "announce"))
+
+        # 2.4B policy_change_roa_lag_inventory_stale:
+        # Origin NOT in inventory AND ROA lags -> ROV Invalid -> triggers ORIGIN_HIJACK (known FP source)
+        count_lag_stale = self.scenario_counts.get("policy_change_roa_lag_inventory_stale", 6)
+        scenario_stats["policy_change_roa_lag_inventory_stale"] = count_lag_stale
+        lag_stale_base = self.snap2_time - 2400.0  # Before 06:00:00Z snapshot
+        for i in range(count_lag_stale):
+            t_start = lag_stale_base + (i * 360.0)  # Spaced > 300s
+            t_end = t_start + 300.0
+            # 203.0.113.0/24 has neither inventory nor ROA for AS64498 before 06:00:00Z
             net = ipaddress.ip_network("203.0.113.0/24")
             origin = 64498
 
@@ -368,15 +401,15 @@ class ScenarioInjector:
                 end_time=t_end,
                 prefix=str(net),
                 origin_asn=origin,
-                type="POLICY_CHANGE",
+                type="POLICY_LAG_STALE_INV",
                 benign=True,
-                scenario="policy_change_roa_lag",
+                scenario="policy_change_roa_lag_inventory_stale",
                 difficulty="hard",
-                expected_alert_type="ROA_INVALID",
+                expected_alert_type="ORIGIN_HIJACK",
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
+            peer = self.rng.choice(self.known_peers)
             updates.append(BGPUpdate(t_start, net, origin, peer, "announce"))
 
         # 2.5 te_more_specific: legitimate origin announces more-specific within maxLength
@@ -385,7 +418,6 @@ class ScenarioInjector:
         for i in range(count):
             t_start = self._random_time_in_range(self.start_time + 600, self.end_time - 1200)
             t_end = t_start + 1800
-            # AS13335 announces /24 subprefixes inside 198.51.100.0/22 (maxLength is 24)
             sub_id = i % 4
             net = ipaddress.ip_network(f"198.51.10{sub_id}.0/24")
             origin = 13335
@@ -406,27 +438,26 @@ class ScenarioInjector:
             )
             events.append(evt)
 
-            peer = self.rng.choice(self.peers)
+            # Mix of known and novel peers (so peer novelty is NOT a 100% separator)
+            peer = self.novel_peer if (i % 3 == 0) else self.rng.choice(self.known_peers)
             updates.append(BGPUpdate(t_start, net, origin, peer, "announce"))
 
         # ---------------------------------------------------------
         # 3. Benign Background Traffic Generation
         # ---------------------------------------------------------
         bg_prefixes = [ipaddress.ip_network(p) for p in self.external_prefixes]
-        # Also include legitimate announcements of stable inventory prefixes
         for inv_it in self.inventory.all_items():
-            # 203.0.113.0/24 is reserved for dynamic policy change & scrubbing scenarios
             if str(inv_it.prefix) != "203.0.113.0/24":
                 bg_prefixes.append(inv_it.prefix)
 
-        for _ in range(self.background_count):
+        # 3.1 Normal Background (~98.5% of updates: Valid or NotFound)
+        normal_bg_count = self.background_count - int(self.background_count * 0.015)
+        for _ in range(normal_bg_count):
             t = self._random_time_in_range(self.start_time + 10, self.end_time - 10)
             prefix = self.rng.choice(bg_prefixes)
 
-            # Determine origin
             inv_exact = self.inventory.lookup_exact(prefix)
             if inv_exact:
-                # Pick origin valid at time t to represent legitimate background operator traffic
                 if str(prefix) == "198.51.100.0/22":
                     origin = 13335
                 elif str(prefix) == "192.0.2.0/24":
@@ -436,17 +467,33 @@ class ScenarioInjector:
             else:
                 origin = self.rng.choice(self.external_asns)
 
-            peer = self.rng.choice(self.peers)
-            # 85% announcements, 15% withdrawals
+            peer = self.rng.choice(self.known_peers)
             action = "withdraw" if self.rng.random() < 0.15 else "announce"
+            updates.append(BGPUpdate(t, prefix, origin, peer, action))
+
+        # 3.2 Realistic Third-Party Noise (~1.5% ROV Invalid outside operator inventory)
+        # Models real Internet routing hygiene issues (AS0 ROA routes, maxLength violations on public prefixes)
+        noise_count = int(self.background_count * 0.015)
+        third_party_invalid_prefixes = [
+            (ipaddress.ip_network("198.51.200.0/24"), 65001),  # Covered by AS0 ROA in snapshot 2/3
+            (ipaddress.ip_network("198.51.200.0/25"), 65002),  # AS0 + subprefix
+            (ipaddress.ip_network("203.0.114.0/24"), 65003),   # External prefix adjacent to inventory
+        ]
+        for _ in range(noise_count):
+            # Place after snapshot 2 (06:00) when AS0 ROA is published
+            t = self._random_time_in_range(self.snap2_time + 300, self.end_time - 300)
+            prefix, origin = self.rng.choice(third_party_invalid_prefixes)
+            peer = self.rng.choice(self.all_peers)
+            action = "withdraw" if self.rng.random() < 0.10 else "announce"
             updates.append(BGPUpdate(t, prefix, origin, peer, action))
 
         # Sort updates chronologically
         updates.sort(key=lambda u: u.timestamp)
         events.sort(key=lambda e: e.start_time)
 
-        # Build manifest
+        # Build manifest v2
         manifest = {
+            "version": "generator v2",
             "random_seed": self.seed,
             "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "start_time": datetime.datetime.fromtimestamp(self.start_time, tz=datetime.timezone.utc).isoformat(),
@@ -459,6 +506,13 @@ class ScenarioInjector:
             "anomaly_events_count": sum(1 for e in events if not e.benign),
             "benign_events_count": sum(1 for e in events if e.benign),
             "scenario_counts": scenario_stats,
+            "changelog": [
+                "v2: Made loose_maxlength_hijack a forged-origin more-specific (ROV Valid, origin in inventory; baseline misses)",
+                "v2: Split policy_change_roa_lag into policy_change_roa_lag_inventory_updated and policy_change_roa_lag_inventory_stale",
+                "v2: Added ~1.5% third-party RFC 6811 Invalid background routes tagged as THIRD_PARTY_INVALID",
+                "v2: Balanced peer novelty across benign TE and forged anomalies to prevent trivial feature leakage",
+                "v2: Spaced recurring scenario events beyond 300s dedup window to allow consistent event-level evaluation",
+            ],
         }
 
         return updates, events, manifest
@@ -518,7 +572,7 @@ class ScenarioInjector:
                 )
 
         # Write manifest.json
-        with manifest_file.open("w", encoding="utf-8") as f:
+        with manifest_file.open("w", encoding="utf-8", newline="") as f:
             json.dump(manifest, f, indent=2)
 
         return manifest
@@ -532,5 +586,5 @@ def generate_synthetic_data(config_path: str = "config.yaml", seed: Optional[int
 
 if __name__ == "__main__":
     manifest = generate_synthetic_data()
-    print("Synthetic dataset successfully generated:")
+    print("Synthetic dataset successfully generated (v2):")
     print(json.dumps(manifest, indent=2))
