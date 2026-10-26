@@ -24,11 +24,15 @@ Strict Rule Precedence:
    - Cryptographically valid per RPKI ROA, but origin ASN missing from operator inventory
      (stale inventory documentation or uncoordinated ROA creation).
 6. Precedence 4: ROA_INVALID (Medium / High Severity)
-   - Condition: RFC 6811 ROV state is Invalid and not categorized as a hijack.
+   - Condition: RFC 6811 ROV state is Invalid on an operator inventory prefix.
    - Sub-case A (Policy Lag): Origin IS authorized in inventory, but ROA is Invalid.
      Emits ROA_INVALID at medium severity (inventory and ROA disagree; ROA update lag).
-   - Sub-case B: General RFC 6811 Invalid (AS0 ROA, length exceeds maxLength).
-7. Precedence 5: ROA_MISSING (Low Severity)
+   - Sub-case B: General RFC 6811 Invalid on operator prefix (AS0 ROA, length exceeds maxLength).
+7. Precedence 5: THIRD_PARTY_INVALID (Low Severity)
+   - Condition: Prefix is outside operator inventory (not monitored), but RFC 6811 ROV is Invalid.
+   - Tagged separately to distinguish third-party Internet routing hygiene issues from operator
+     network security anomalies.
+8. Precedence 6: ROA_MISSING (Low Severity)
    - Condition: Operator inventory prefix announced by authorized origin, but ROV state is NotFound.
    - Informational warning indicating lack of RPKI ROA coverage.
 """
@@ -149,7 +153,7 @@ class RuleBasedDetector:
             )
 
         # 2. SUBPREFIX_HIJACK: More-specific of inventory prefix announced by unauthorized origin with Invalid/NotFound ROV
-        elif (is_more_specific or (rov_res.covering_roas and not origin_in_inventory)) and not origin_in_inventory and not rov_res.is_valid:
+        elif is_more_specific and not origin_in_inventory and not rov_res.is_valid:
             candidate_alert = Alert(
                 alert_id=f"alt-{uuid.uuid4().hex[:8]}",
                 time=timestamp,
@@ -178,8 +182,8 @@ class RuleBasedDetector:
                 reason=f"ROV Valid per RPKI ROA but origin AS{origin_asn} is not registered in operator inventory (potential stale inventory or uncoordinated ROA)",
             )
 
-        # 4. ROA_INVALID: RFC 6811 Invalid not covered by previous hijack rules
-        elif rov_res.is_invalid:
+        # 4. ROA_INVALID: RFC 6811 Invalid on an operator inventory prefix
+        elif inv_item is not None and rov_res.is_invalid:
             if origin_in_inventory:
                 # Edge Case 1: Origin is in inventory allowed set, but ROV is Invalid (ROA lags policy change)
                 # Emit ROA_INVALID at medium severity; do not label as a hijack!
@@ -196,20 +200,33 @@ class RuleBasedDetector:
                     reason="Origin authorized in operator inventory but ROA state is Invalid (ROA lags behind policy change; inventory and ROA disagree)",
                 )
             else:
-                # General ROA Invalid (e.g. AS0 ROA, length exceeds maxLength on unowned route)
-                severity = "high" if inv_item is not None else "medium"
                 candidate_alert = Alert(
                     alert_id=f"alt-{uuid.uuid4().hex[:8]}",
                     time=timestamp,
                     type="ROA_INVALID",
                     prefix=prefix_str,
                     origin_asn=origin_asn,
-                    severity=severity,
+                    severity="high",
                     detector="rules",
                     rov_result=rov_res,
                     inventory_match=inv_item,
-                    reason=f"RFC 6811 Invalid: {rov_res.invalid_reason}",
+                    reason=f"RFC 6811 Invalid on operator prefix: {rov_res.invalid_reason}",
                 )
+
+        # 5. THIRD_PARTY_INVALID: RFC 6811 Invalid on routes outside operator inventory
+        elif inv_item is None and rov_res.is_invalid:
+            candidate_alert = Alert(
+                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                time=timestamp,
+                type="THIRD_PARTY_INVALID",
+                prefix=prefix_str,
+                origin_asn=origin_asn,
+                severity="low",
+                detector="rules",
+                rov_result=rov_res,
+                inventory_match=None,
+                reason=f"Third-party Internet route outside operator inventory is RFC 6811 Invalid ({rov_res.invalid_reason})",
+            )
 
         # 5. ROA_MISSING: Inventory-owned prefix announced with NotFound ROV state
         elif inv_item is not None and rov_res.is_not_found:
