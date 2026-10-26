@@ -9,6 +9,7 @@ paths:
   roa_snapshots_dir: "data/roa_snapshots"
   feed_replay: "data/feed_replay.csv"
   labels: "data/labels.csv"
+  manifest: "data/manifest.json"
   reports_dir: "reports"
   alerts_jsonl: "reports/alerts.jsonl"
   baseline_metrics: "reports/baseline_metrics.json"
@@ -28,3 +29,27 @@ replay:
 evaluation:
   test_split_ratio: 0.3
   time_split: true
+
+simulation:
+  random_seed: 42
+  start_time: "2026-10-26T00:00:00Z"
+  duration_hours: 24
+  background_count: 3000
+  peers:
+    - "198.32.160.1"      # AMS-IX Route Server
+    - "198.32.176.1"      # DE-CIX Frankfurt
+    - "198.32.124.1"      # LINX London
+    - "206.108.34.1"      # Equinix Ashburn
+    - "198.32.132.1"      # Tokyo JPIX
+  scenario_counts:
+    # Anomalies (benign = false)
+    exact_origin_hijack: 12
+    subprefix_hijack: 12
+    hijack_after_roa_change: 8
+    loose_maxlength_hijack: 8
+    # Benign scenarios (benign = true)
+    multi_origin_anycast: 10
+    multi_origin_ddos_scrubbing: 8
+    policy_change_roa_first: 8
+    policy_change_roa_lag: 8
+    te_more_specific: 14
