@@ -141,7 +141,9 @@ def test_edge_case_stale_inventory_rov_valid(test_setup) -> None:
 
     alert = detector.process_update(u_stale)
     assert alert is not None
+    assert alert.type == "INVENTORY_MISMATCH"
     assert alert.severity == "low"
+    assert "HIJACK" not in alert.type
     assert "stale inventory" in alert.reason.lower()
 
 

@@ -7,29 +7,30 @@ Strict Rule Precedence:
 ======================
 1. Ignore withdrawals: Only announcements ('announce') are evaluated.
 2. Legitimate pass-through (NO ALERT):
-   - Exact or more-specific announcement where origin is authorized in inventory AND
+   - Announcement for inventory prefix where origin is authorized in inventory AND
      ROV state is Valid (within ROA maxLength).
    - Benign external routes outside operator inventory with Valid or NotFound ROV state.
-3. Precedence 1: ORIGIN_HIJACK
-   - Announced prefix matches inventory exactly, but origin ASN is not in inventory's
-     authorized set.
-   - High severity if ROV is Invalid or NotFound.
-   - Edge Case: Low severity if ROV is Valid (stale inventory: ROA exists and validates,
-     but operator inventory lacks the new origin).
-4. Precedence 2: SUBPREFIX_HIJACK
-   - Announced prefix is a more-specific of an inventory prefix or ROA prefix, but origin
-     ASN is not authorized.
-   - High severity if origin is foreign and unauthorized.
-   - Low severity if ROV Valid but origin not in operator inventory.
-5. Precedence 3: ROA_INVALID
-   - ROV validation state is Invalid and not already categorized as an inventory hijack.
-   - Edge Case: Medium severity if origin IS in inventory's authorized set (ROA lag
-     behind policy change: inventory and ROA disagree).
-   - High/Medium severity for general RFC 6811 Invalid (AS0 ROA, maxLength exceeded).
-6. Precedence 4: ROA_MISSING
-   - Prefix is owned in operator inventory, origin is authorized, but ROV state is
-     NotFound.
-   - Low severity informational warning.
+3. Precedence 1: ORIGIN_HIJACK (High Severity)
+   - Condition: Exact match on inventory prefix, origin ASN is NOT in inventory allowed set,
+     AND ROV state is Invalid/NotFound (or NoSnapshot).
+   - Genuine unauthorized origin hijack of an operator-owned prefix.
+4. Precedence 2: SUBPREFIX_HIJACK (High Severity)
+   - Condition: Announced prefix is a more-specific (subprefix) of an inventory or ROA prefix,
+     origin ASN is NOT in inventory allowed set, AND ROV state is Invalid/NotFound.
+   - Genuine unauthorized more-specific hijack.
+5. Precedence 3: INVENTORY_MISMATCH (Low Severity)
+   - Condition: Prefix is in operator inventory (exact or covering), origin ASN is NOT registered
+     in inventory, BUT ROV state is Valid.
+   - Cryptographically valid per RPKI ROA, but origin ASN missing from operator inventory
+     (stale inventory documentation or uncoordinated ROA creation).
+6. Precedence 4: ROA_INVALID (Medium / High Severity)
+   - Condition: RFC 6811 ROV state is Invalid and not categorized as a hijack.
+   - Sub-case A (Policy Lag): Origin IS authorized in inventory, but ROA is Invalid.
+     Emits ROA_INVALID at medium severity (inventory and ROA disagree; ROA update lag).
+   - Sub-case B: General RFC 6811 Invalid (AS0 ROA, length exceeds maxLength).
+7. Precedence 5: ROA_MISSING (Low Severity)
+   - Condition: Operator inventory prefix announced by authorized origin, but ROV state is NotFound.
+   - Informational warning indicating lack of RPKI ROA coverage.
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ class Alert:
 
     alert_id: str
     time: float
-    type: str  # ORIGIN_HIJACK, SUBPREFIX_HIJACK, ROA_INVALID, ROA_MISSING
+    type: str  # ORIGIN_HIJACK, SUBPREFIX_HIJACK, INVENTORY_MISMATCH, ROA_INVALID, ROA_MISSING
     prefix: str
     origin_asn: int
     severity: str  # high, medium, low
@@ -99,7 +100,7 @@ class RuleBasedDetector:
 
     def process_update(self, update: BGPUpdate) -> Optional[Alert]:
         """Process a single BGP update and return an Alert if an anomaly is detected."""
-        # 1. Ignore withdrawals
+        # 1. Ignore withdrawals: Process announcements only
         if not update.is_announcement:
             return None
 
@@ -119,7 +120,7 @@ class RuleBasedDetector:
 
         origin_in_inventory = self.inventory.is_origin_allowed(prefix, origin_asn)
 
-        # --- Rule Evaluation: Legitimate Filtering ---
+        # --- Rule Evaluation: Legitimate Pass-Through ---
         # Legitimate traffic: in inventory, origin allowed, ROV Valid -> DO NOT ALERT
         if origin_in_inventory and rov_res.is_valid:
             return None
@@ -132,67 +133,52 @@ class RuleBasedDetector:
 
         # --- Strict Rule Precedence ---
 
-        # 1. ORIGIN_HIJACK: Exact inventory prefix announced by unauthorized origin
-        if inv_exact is not None and not origin_in_inventory:
-            if rov_res.is_valid:
-                # Edge Case 2: ROV Valid but origin NOT in inventory (stale inventory)
-                # Choice: Emit ORIGIN_HIJACK at LOW severity with explicit rationale
-                candidate_alert = Alert(
-                    alert_id=f"alt-{uuid.uuid4().hex[:8]}",
-                    time=timestamp,
-                    type="ORIGIN_HIJACK",
-                    prefix=prefix_str,
-                    origin_asn=origin_asn,
-                    severity="low",
-                    detector="rules",
-                    rov_result=rov_res,
-                    inventory_match=inv_exact,
-                    reason="ROV Valid but origin ASN is not registered in operator inventory (potential stale inventory or uncoordinated ROA)",
-                )
-            else:
-                candidate_alert = Alert(
-                    alert_id=f"alt-{uuid.uuid4().hex[:8]}",
-                    time=timestamp,
-                    type="ORIGIN_HIJACK",
-                    prefix=prefix_str,
-                    origin_asn=origin_asn,
-                    severity="high",
-                    detector="rules",
-                    rov_result=rov_res,
-                    inventory_match=inv_exact,
-                    reason=f"Unauthorized origin AS{origin_asn} announced exact inventory prefix (expected ASNs: {sorted(inv_exact.expected_origin_asns)})",
-                )
+        # 1. ORIGIN_HIJACK: Exact inventory prefix announced by unauthorized origin with Invalid/NotFound ROV
+        if inv_exact is not None and not origin_in_inventory and not rov_res.is_valid:
+            candidate_alert = Alert(
+                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                time=timestamp,
+                type="ORIGIN_HIJACK",
+                prefix=prefix_str,
+                origin_asn=origin_asn,
+                severity="high",
+                detector="rules",
+                rov_result=rov_res,
+                inventory_match=inv_exact,
+                reason=f"Unauthorized origin AS{origin_asn} announced exact inventory prefix (expected ASNs: {sorted(inv_exact.expected_origin_asns)})",
+            )
 
-        # 2. SUBPREFIX_HIJACK: Announced prefix is a more-specific and origin is unauthorized
-        elif (is_more_specific or (rov_res.covering_roas and not rov_res.is_valid and not origin_in_inventory)) and not origin_in_inventory:
-            if rov_res.is_valid:
-                candidate_alert = Alert(
-                    alert_id=f"alt-{uuid.uuid4().hex[:8]}",
-                    time=timestamp,
-                    type="SUBPREFIX_HIJACK",
-                    prefix=prefix_str,
-                    origin_asn=origin_asn,
-                    severity="low",
-                    detector="rules",
-                    rov_result=rov_res,
-                    inventory_match=inv_covering,
-                    reason="Subprefix announcement valid per ROA maxLength but origin not authorized in operator inventory (potential stale inventory)",
-                )
-            else:
-                candidate_alert = Alert(
-                    alert_id=f"alt-{uuid.uuid4().hex[:8]}",
-                    time=timestamp,
-                    type="SUBPREFIX_HIJACK",
-                    prefix=prefix_str,
-                    origin_asn=origin_asn,
-                    severity="high",
-                    detector="rules",
-                    rov_result=rov_res,
-                    inventory_match=inv_covering,
-                    reason=f"Subprefix /{prefix.prefixlen} hijacked by unauthorized AS{origin_asn} under parent prefix",
-                )
+        # 2. SUBPREFIX_HIJACK: More-specific of inventory prefix announced by unauthorized origin with Invalid/NotFound ROV
+        elif (is_more_specific or (rov_res.covering_roas and not origin_in_inventory)) and not origin_in_inventory and not rov_res.is_valid:
+            candidate_alert = Alert(
+                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                time=timestamp,
+                type="SUBPREFIX_HIJACK",
+                prefix=prefix_str,
+                origin_asn=origin_asn,
+                severity="high",
+                detector="rules",
+                rov_result=rov_res,
+                inventory_match=inv_covering,
+                reason=f"Subprefix /{prefix.prefixlen} hijacked by unauthorized AS{origin_asn} under parent prefix",
+            )
 
-        # 3. ROA_INVALID: RFC 6811 Invalid not covered by previous hijack rules
+        # 3. INVENTORY_MISMATCH: ROV Valid per RPKI ROA but origin is NOT registered in operator inventory
+        elif inv_item is not None and not origin_in_inventory and rov_res.is_valid:
+            candidate_alert = Alert(
+                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                time=timestamp,
+                type="INVENTORY_MISMATCH",
+                prefix=prefix_str,
+                origin_asn=origin_asn,
+                severity="low",
+                detector="rules",
+                rov_result=rov_res,
+                inventory_match=inv_item,
+                reason=f"ROV Valid per RPKI ROA but origin AS{origin_asn} is not registered in operator inventory (potential stale inventory or uncoordinated ROA)",
+            )
+
+        # 4. ROA_INVALID: RFC 6811 Invalid not covered by previous hijack rules
         elif rov_res.is_invalid:
             if origin_in_inventory:
                 # Edge Case 1: Origin is in inventory allowed set, but ROV is Invalid (ROA lags policy change)
@@ -225,7 +211,7 @@ class RuleBasedDetector:
                     reason=f"RFC 6811 Invalid: {rov_res.invalid_reason}",
                 )
 
-        # 4. ROA_MISSING: Inventory-owned prefix announced with NotFound ROV state
+        # 5. ROA_MISSING: Inventory-owned prefix announced with NotFound ROV state
         elif inv_item is not None and rov_res.is_not_found:
             candidate_alert = Alert(
                 alert_id=f"alt-{uuid.uuid4().hex[:8]}",
