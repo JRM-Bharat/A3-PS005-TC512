@@ -176,7 +176,7 @@ class RuleBasedDetector:
                     detector="rules",
                     rov_result=rov_res,
                     inventory_match=inv_covering,
-                    reason="Subprefix announcement valid per ROA maxLength but origin not authorized in operator inventory",
+                    reason="Subprefix announcement valid per ROA maxLength but origin not authorized in operator inventory (potential stale inventory)",
                 )
             else:
                 candidate_alert = Alert(
