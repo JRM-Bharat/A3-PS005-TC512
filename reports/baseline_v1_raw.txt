@@ -1,0 +1,25 @@
+# Phase 2 Baseline Detector Run on Synthetic Feed v1 (Audit Snapshot)
+# Run Date: 2026-10-26T20:49:20Z
+# Random Seed: 42
+
+Total Updates Processed: 3160
+Total Alerts Triggered: 50
+
+Raw Alert Counts per Scenario (v1):
+=======================================================
+  subprefix_hijack                : 12
+  exact_origin_hijack             : 12
+  loose_maxlength_hijack          : 8
+  hijack_after_roa_change         : 8
+  multi_origin_ddos_scrubbing     : 7
+  policy_change_roa_lag           : 3
+  te_more_specific                : 0
+  policy_change_roa_first         : 0
+  multi_origin_anycast            : 0
+  background_noise                : 0
+
+Alert Types Triggered (v1):
+=======================================================
+  ORIGIN_HIJACK                   : 23
+  SUBPREFIX_HIJACK                : 20
+  INVENTORY_MISMATCH              : 7
