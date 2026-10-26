@@ -1,0 +1,30 @@
+# BGP Origin and Subprefix Anomaly Monitor (PS-005) Configuration
+
+system:
+  project_name: "bgp-anomaly-monitor"
+  random_seed: 42
+
+paths:
+  inventory: "data/inventory.csv"
+  roa_snapshots_dir: "data/roa_snapshots"
+  feed_replay: "data/feed_replay.csv"
+  labels: "data/labels.csv"
+  reports_dir: "reports"
+  alerts_jsonl: "reports/alerts.jsonl"
+  baseline_metrics: "reports/baseline_metrics.json"
+  ml_metrics: "reports/ml_metrics.json"
+  comparison_report: "reports/comparison.md"
+
+detection:
+  # Deduplication window in seconds for identical (prefix, origin_asn) updates
+  dedup_window_seconds: 300
+  # Alert evaluation time matching window in seconds
+  matching_window_seconds: 600
+
+replay:
+  default_speed_multiplier: 0.0 # 0.0 = batch processing (as fast as possible)
+  filter_withdrawals: false
+
+evaluation:
+  test_split_ratio: 0.3
+  time_split: true
