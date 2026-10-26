@@ -200,3 +200,17 @@ def test_deduplication_window_expiry(test_setup) -> None:
     a2 = detector.process_update(u2)
     assert a2 is not None
     assert a2.time == t0 + 350.0
+
+
+def test_third_party_invalid_alert(test_setup) -> None:
+    """Routes outside operator inventory that are RFC 6811 Invalid emit THIRD_PARTY_INVALID at low severity."""
+    detector, t0, tmpdir = test_setup
+    # In test_setup, 198.51.200.0/24 has ROA for AS65500 with max 24
+    # Announce with AS99999 (invalid origin) on unmonitored prefix
+    u_tp = BGPUpdate(t0, ipaddress.ip_network("198.51.200.0/24"), 99999)
+    alert = detector.process_update(u_tp)
+    assert alert is not None
+    assert alert.type == "THIRD_PARTY_INVALID"
+    assert alert.severity == "low"
+    assert "Third-party" in alert.reason
+    assert alert.inventory_match is None
