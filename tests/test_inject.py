@@ -117,3 +117,74 @@ def test_save_to_disk() -> None:
         assert manifest_file.exists()
         assert manifest["total_feed_updates"] > 0
         assert manifest["total_labelled_events"] > 0
+        assert manifest["version"] == "generator v2"
+
+
+def test_loose_maxlength_hijack_is_genuine_hard_anomaly() -> None:
+    """loose_maxlength_hijack must have ROV Valid and origin in inventory, missed by baseline rules."""
+    from src.inventory import PrefixInventory
+    from src.roa_store import ROAStore
+    from src.rules import RuleBasedDetector
+
+    inv = PrefixInventory.load_from_csv("data/inventory.csv")
+    store = ROAStore("data/roa_snapshots")
+    detector = RuleBasedDetector(inventory=inv, roa_store=store)
+
+    injector = ScenarioInjector(config_path="config.yaml", seed=42)
+    updates, events, _ = injector.generate()
+
+    loose_events = [e for e in events if e.scenario == "loose_maxlength_hijack"]
+    assert len(loose_events) > 0
+
+    for e in loose_events:
+        assert e.difficulty == "hard"
+        assert e.benign is False
+        assert e.expected_alert_type == "NONE"
+        # Find matching announcement in updates
+        ev_announces = [
+            u for u in updates
+            if u.prefix_str == e.prefix and u.origin_asn == e.origin_asn and u.is_announcement
+        ]
+        assert len(ev_announces) > 0
+        # Rule baseline MUST miss this attack because origin is forged and ROV is Valid
+        for u in ev_announces:
+            alert = detector.process_update(u)
+            assert alert is None, f"Baseline should miss forged origin subprefix {u.prefix}, but got {alert}"
+
+
+def test_split_policy_lag_scenarios() -> None:
+    """Verify split policy lag scenarios: inventory_updated -> ROA_INVALID; inventory_stale -> ORIGIN_HIJACK."""
+    from src.inventory import PrefixInventory
+    from src.roa_store import ROAStore
+    from src.rules import RuleBasedDetector
+
+    inv = PrefixInventory.load_from_csv("data/inventory.csv")
+    store = ROAStore("data/roa_snapshots")
+    detector = RuleBasedDetector(inventory=inv, roa_store=store)
+
+    injector = ScenarioInjector(config_path="config.yaml", seed=42)
+    updates, events, _ = injector.generate()
+
+    # 1. Test inventory_updated lag
+    lag_updated = [e for e in events if e.scenario == "policy_change_roa_lag_inventory_updated"]
+    assert len(lag_updated) > 0
+    detector.reset()
+    for e in lag_updated:
+        u = [u for u in updates if u.prefix_str == e.prefix and u.origin_asn == e.origin_asn and u.is_announcement][0]
+        alert = detector.process_update(u)
+        detector.reset()
+        assert alert is not None
+        assert alert.type == "ROA_INVALID"
+        assert alert.severity == "medium"
+
+    # 2. Test inventory_stale lag
+    lag_stale = [e for e in events if e.scenario == "policy_change_roa_lag_inventory_stale"]
+    assert len(lag_stale) > 0
+    detector.reset()
+    for e in lag_stale:
+        u = [u for u in updates if u.prefix_str == e.prefix and u.origin_asn == e.origin_asn and u.is_announcement][0]
+        alert = detector.process_update(u)
+        detector.reset()
+        assert alert is not None
+        assert alert.type == "ORIGIN_HIJACK"
+        assert alert.severity == "high"
