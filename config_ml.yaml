@@ -1,0 +1,68 @@
+# BGP Anomaly Monitor - Phase 5 ML Dataset Configuration
+# Scale: 10x event counts vs baseline config.yaml
+# NOTE: This is a SCALE CHANGE, not a scenario change.
+# All scenario definitions are identical to config.yaml;
+# only event counts are multiplied ~10x to ensure each time slice
+# (train / validation / test) contains sufficient forged-origin positives.
+# The random seed (777) is recorded here for full reproducibility.
+
+system:
+  project_name: "bgp-anomaly-monitor-ml"
+  random_seed: 777
+
+paths:
+  inventory: "data/inventory.csv"
+  roa_snapshots_dir: "data/roa_snapshots"
+  feed_replay: "data/ml_feed_replay.csv"
+  labels: "data/ml_labels.csv"
+  manifest: "data/ml_manifest.json"
+  reports_dir: "reports"
+  alerts_jsonl: "reports/alerts.jsonl"
+  baseline_metrics: "reports/baseline_metrics.json"
+  ml_metrics: "reports/ml_metrics.json"
+  comparison_report: "reports/comparison.md"
+
+detection:
+  dedup_window_seconds: 300
+  matching_window_seconds: 600
+
+replay:
+  default_speed_multiplier: 0.0
+  filter_withdrawals: false
+
+evaluation:
+  test_split_ratio: 0.2
+  val_split_ratio: 0.2
+  time_split: true
+
+simulation:
+  # Recorded seed for reproducibility
+  random_seed: 777
+  start_time: "2026-10-26T00:00:00Z"
+  duration_hours: 24
+  # Spread forged-origin events uniformly across full 24h so every time split has positives
+  spread_forged_origin_full_24h: true
+  # 10x background traffic
+  background_count: 30000
+  peers:
+    - "198.32.160.1"      # AMS-IX Route Server
+    - "198.32.176.1"      # DE-CIX Frankfurt
+    - "198.32.124.1"      # LINX London
+    - "206.108.34.1"      # Equinix Ashburn
+    - "198.32.132.1"      # Tokyo JPIX
+  scenario_counts:
+    # Anomalies (benign = false) - 10x counts
+    exact_origin_hijack: 120
+    subprefix_hijack: 120
+    hijack_after_roa_change: 80
+    # loose_maxlength_hijack: 120 events spread across full 24h window
+    # so each train / val / test slice contains >= 20 positives
+    loose_maxlength_hijack: 120
+    # Benign scenarios (benign = true) - 10x counts
+    # Keeping same hard benign scenarios for like-for-like comparison
+    multi_origin_anycast: 100
+    multi_origin_ddos_scrubbing: 80
+    policy_change_roa_first: 80
+    policy_change_roa_lag_inventory_updated: 60
+    policy_change_roa_lag_inventory_stale: 60
+    te_more_specific: 140
