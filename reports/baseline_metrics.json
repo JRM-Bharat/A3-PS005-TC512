@@ -3,21 +3,37 @@
     "feed": "data/feed_replay.csv",
     "labels": "data/labels.csv",
     "total_feed_updates": 3164,
-    "total_events": 92
+    "total_events": 92,
+    "anomaly_events": 40,
+    "benign_events": 52
   },
+  "headline_metric_rationale": "Event-level precision is preferred as the headline metric because network security incidents are event windows (e.g. hijack attacks, scrubbing activations). Event-level metrics align directly with the confusion matrix (TP + FP + TN + FN = Total Events) and prevent alert-frequency skew.",
   "performance_speed": {
-    "wall_clock_time_ms_per_update": 0.0137,
-    "updates_per_second": 73014.9
+    "wall_clock_time_ms_per_update": 0.014,
+    "updates_per_second": 71613.4
   },
   "third_party_noise_table": {
     "alert_type": "THIRD_PARTY_INVALID",
     "total_injected_noise_updates": 45,
+    "withdrawals": 6,
+    "announcements_total": 39,
+    "announcements_not_found": 20,
+    "announcements_rpki_invalid": 19,
     "alerts_emitted": 19,
-    "explanation": "Out of 45 third-party updates: ~10% are withdrawals (ignored), ~33% are outside ROA coverage (NotFound, benign non-inventory), and duplicate announcements within the 300s window are deduplicated, leaving exactly 19 distinct low-severity alerts."
+    "explanation": "Out of 45 injected third-party updates outside operator inventory: 6 were withdrawals (which do not emit alerts), 20 were announcements for unmonitored prefix 203.0.114.0/24 whose ROV state is NotFound (which do not trigger THIRD_PARTY_INVALID alerts since there are no violating covering ROAs), and 19 were announcements for 198.51.200.0/24 and /25 covered by an AS0 ROA in snapshots 2 and 3 (evaluating to RFC 6811 Invalid). Each of those 19 Invalid announcements emitted exactly one alert."
   },
   "primary_policy_all_alerts": {
     "policy_definition": "All operator alert types count (strictest)",
+    "headline_metric": "event_precision",
     "event_metrics": {
+      "tp": 32,
+      "fp": 20,
+      "fn": 8,
+      "precision": 0.6154,
+      "recall": 0.8,
+      "f1": 0.6957
+    },
+    "alert_metrics": {
       "tp": 32,
       "fp": 20,
       "fn": 8,
@@ -27,18 +43,27 @@
     },
     "alert_level_precision": 0.6154,
     "bootstrap_95_ci": {
+      "resampling_unit": "events",
+      "n_bootstraps": 2000,
+      "ci_level": 0.95,
       "precision_ci": [
-        0.5957,
-        0.814
+        0.5263,
+        0.7083
       ],
       "recall_ci": [
         0.675,
         0.925
       ],
       "f1_ci": [
-        0.6506,
-        0.8372
-      ]
+        0.6022,
+        0.7826
+      ],
+      "point_estimates": {
+        "event_precision": 0.6154,
+        "event_recall": 0.8,
+        "event_f1": 0.6957
+      },
+      "edge_note": "All point estimates sit comfortably within the interior of their 95% bootstrap CIs."
     },
     "missed_events_count": 8,
     "missed_due_to_dedup_count": 0,
@@ -52,21 +77,32 @@
       "easy": 1.0,
       "hard": 0.5
     },
+    "difficulty_counts": {
+      "easy": {
+        "tp": 24,
+        "total": 24,
+        "recall": 1.0
+      },
+      "hard": {
+        "tp": 8,
+        "total": 16,
+        "recall": 0.5
+      }
+    },
     "fp_per_benign_scenario": {
       "multi_origin_anycast": 0,
       "multi_origin_ddos_scrubbing": 8,
       "policy_change_roa_first": 0,
       "policy_change_roa_lag_inventory_stale": 6,
       "policy_change_roa_lag_inventory_updated": 6,
-      "te_more_specific": 0,
-      "background_operator_noise": 0
+      "te_more_specific": 0
     },
     "benign_event_fp_rate": {
       "multi_origin_anycast": 0.0,
-      "multi_origin_ddos_scrubbing": 0.75,
+      "multi_origin_ddos_scrubbing": 1.0,
       "policy_change_roa_first": 0.0,
-      "policy_change_roa_lag_inventory_stale": 0.6667,
-      "policy_change_roa_lag_inventory_updated": 0.6667,
+      "policy_change_roa_lag_inventory_stale": 1.0,
+      "policy_change_roa_lag_inventory_updated": 1.0,
       "te_more_specific": 0.0
     },
     "fp_per_1000_background": 0.0,
@@ -81,15 +117,24 @@
     "confusion_matrix": {
       "true_positives": 32,
       "false_negatives": 8,
-      "false_positives_events": 14,
-      "true_negatives_events": 38,
+      "false_positives_events": 20,
+      "true_negatives_events": 32,
       "total_anomalies": 40,
       "total_benign": 52
     }
   },
   "secondary_policy_high_medium": {
     "policy_definition": "High and Medium severity alerts only (filters low-severity INVENTORY_MISMATCH/ROA_MISSING)",
+    "headline_metric": "event_precision",
     "event_metrics": {
+      "tp": 32,
+      "fp": 12,
+      "fn": 8,
+      "precision": 0.7273,
+      "recall": 0.8,
+      "f1": 0.7619
+    },
+    "alert_metrics": {
       "tp": 32,
       "fp": 12,
       "fn": 8,
@@ -108,15 +153,35 @@
       "easy": 1.0,
       "hard": 0.5
     },
+    "difficulty_counts": {
+      "easy": {
+        "tp": 24,
+        "total": 24,
+        "recall": 1.0
+      },
+      "hard": {
+        "tp": 8,
+        "total": 16,
+        "recall": 0.5
+      }
+    },
     "fp_per_benign_scenario": {
       "multi_origin_anycast": 0,
       "multi_origin_ddos_scrubbing": 0,
       "policy_change_roa_first": 0,
       "policy_change_roa_lag_inventory_stale": 6,
       "policy_change_roa_lag_inventory_updated": 6,
-      "te_more_specific": 0,
-      "background_operator_noise": 0
+      "te_more_specific": 0
     },
+    "benign_event_fp_rate": {
+      "multi_origin_anycast": 0.0,
+      "multi_origin_ddos_scrubbing": 0.0,
+      "policy_change_roa_first": 0.0,
+      "policy_change_roa_lag_inventory_stale": 1.0,
+      "policy_change_roa_lag_inventory_updated": 1.0,
+      "te_more_specific": 0.0
+    },
+    "fp_per_1000_background": 0.0,
     "latency": {
       "mean_seconds": 0.0,
       "median_seconds": 0.0,
@@ -128,8 +193,8 @@
     "confusion_matrix": {
       "true_positives": 32,
       "false_negatives": 8,
-      "false_positives_events": 8,
-      "true_negatives_events": 44,
+      "false_positives_events": 12,
+      "true_negatives_events": 40,
       "total_anomalies": 40,
       "total_benign": 52
     }
@@ -142,7 +207,110 @@
       4,
       5
     ],
+    "seed_results": [
+      {
+        "seed": 1,
+        "feed_hash": "0f11daf443c36ff1",
+        "feed_update_count": 3164,
+        "total_events": 92,
+        "primary": {
+          "event_precision": 0.6154,
+          "alert_precision": 0.6154,
+          "recall": 0.8,
+          "f1": 0.6957
+        },
+        "secondary": {
+          "event_precision": 0.7273,
+          "alert_precision": 0.7273,
+          "recall": 0.8,
+          "f1": 0.7619
+        }
+      },
+      {
+        "seed": 2,
+        "feed_hash": "5f2d4448bbbd387b",
+        "feed_update_count": 3164,
+        "total_events": 92,
+        "primary": {
+          "event_precision": 0.6154,
+          "alert_precision": 0.6154,
+          "recall": 0.8,
+          "f1": 0.6957
+        },
+        "secondary": {
+          "event_precision": 0.7273,
+          "alert_precision": 0.7273,
+          "recall": 0.8,
+          "f1": 0.7619
+        }
+      },
+      {
+        "seed": 3,
+        "feed_hash": "730ccaa9d6edd608",
+        "feed_update_count": 3164,
+        "total_events": 92,
+        "primary": {
+          "event_precision": 0.6154,
+          "alert_precision": 0.6154,
+          "recall": 0.8,
+          "f1": 0.6957
+        },
+        "secondary": {
+          "event_precision": 0.7273,
+          "alert_precision": 0.7273,
+          "recall": 0.8,
+          "f1": 0.7619
+        }
+      },
+      {
+        "seed": 4,
+        "feed_hash": "b85e568961c2ae3f",
+        "feed_update_count": 3164,
+        "total_events": 92,
+        "primary": {
+          "event_precision": 0.6154,
+          "alert_precision": 0.6154,
+          "recall": 0.8,
+          "f1": 0.6957
+        },
+        "secondary": {
+          "event_precision": 0.7273,
+          "alert_precision": 0.7273,
+          "recall": 0.8,
+          "f1": 0.7619
+        }
+      },
+      {
+        "seed": 5,
+        "feed_hash": "17c7a6b1f5d38e90",
+        "feed_update_count": 3164,
+        "total_events": 92,
+        "primary": {
+          "event_precision": 0.6154,
+          "alert_precision": 0.6154,
+          "recall": 0.8,
+          "f1": 0.6957
+        },
+        "secondary": {
+          "event_precision": 0.7273,
+          "alert_precision": 0.7273,
+          "recall": 0.8,
+          "f1": 0.7619
+        }
+      }
+    ],
     "primary_precision": {
+      "mean": 0.6154,
+      "std": 0.0,
+      "values": [
+        0.6154,
+        0.6154,
+        0.6154,
+        0.6154,
+        0.6154
+      ]
+    },
+    "primary_alert_precision": {
       "mean": 0.6154,
       "std": 0.0,
       "values": [
@@ -177,15 +345,47 @@
     },
     "secondary_precision": {
       "mean": 0.7273,
-      "std": 0.0
+      "std": 0.0,
+      "values": [
+        0.7273,
+        0.7273,
+        0.7273,
+        0.7273,
+        0.7273
+      ]
+    },
+    "secondary_alert_precision": {
+      "mean": 0.7273,
+      "std": 0.0,
+      "values": [
+        0.7273,
+        0.7273,
+        0.7273,
+        0.7273,
+        0.7273
+      ]
     },
     "secondary_recall": {
       "mean": 0.8,
-      "std": 0.0
+      "std": 0.0,
+      "values": [
+        0.8,
+        0.8,
+        0.8,
+        0.8,
+        0.8
+      ]
     },
     "secondary_f1": {
       "mean": 0.7619,
-      "std": 0.0
+      "std": 0.0,
+      "values": [
+        0.7619,
+        0.7619,
+        0.7619,
+        0.7619,
+        0.7619
+      ]
     }
   },
   "generated_plots": [
