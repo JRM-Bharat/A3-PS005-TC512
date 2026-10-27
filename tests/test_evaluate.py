@@ -188,13 +188,16 @@ def test_bootstrap_ci_coverage() -> None:
     scores = MetricScores.from_counts(tp=8, fp=2, fn=2)
     fake_run = EvaluationRun(
         policy="primary_all",
+        headline_metric_type="event_level",
         event_metrics=scores,
+        alert_metrics=scores,
         alert_level_precision=0.8,
         matched_events_count=8,
         missed_events_count=2,
         missed_due_to_dedup_count=0,
         scenario_recall={},
         difficulty_recall={},
+        difficulty_counts={},
         fp_per_benign_scenario={},
         benign_event_fp_rate={},
         fp_per_1000_background=0.0,
@@ -206,10 +209,103 @@ def test_bootstrap_ci_coverage() -> None:
     )
 
     ci = compute_bootstrap_ci(fake_run, anomaly_events_count=10, benign_events_count=10, n_bootstraps=500, seed=42)
+    assert ci["resampling_unit"] == "events"
     assert "precision_ci" in ci
     assert "recall_ci" in ci
     assert "f1_ci" in ci
+    assert "edge_note" in ci
     # Bounds must be within [0.0, 1.0]
     assert 0.0 <= ci["precision_ci"][0] <= ci["precision_ci"][1] <= 1.0
     assert 0.0 <= ci["recall_ci"][0] <= ci["recall_ci"][1] <= 1.0
     assert 0.0 <= ci["f1_ci"][0] <= ci["f1_ci"][1] <= 1.0
+
+
+def test_consecutive_benign_events_one_to_one_matcher_bug_reproduction() -> None:
+    """Matcher Bug Reproduction Test:
+    
+    When two consecutive benign events occur on the same prefix/origin spaced closely
+    (e.g., event 1 [1000s, 1300s] and event 2 [1420s, 1720s], gap 120s), and each emits an alert
+    at its respective start time (alt 1 at 1000s, alt 2 at 1420s):
+    
+    BUG: An unconstrained or overly wide window (e.g. end_time + 600s) on event 1 would extend
+    to 1900s, encompassing alt 2. Greedy sequential matching would allocate alt 2 to event 1,
+    leaving event 2 with 0 alerts and reporting flagged_events = 1 despite 2 alerts.
+    
+    FIX: 1-to-1 matching with proper window bounds correctly matches event 1 -> alt 1 and
+    event 2 -> alt 2, resulting in flagged_events = 2 and alerts = 2.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        inv_file = tmp_path / "inventory.csv"
+        roas_dir = tmp_path / "roas"
+        roas_dir.mkdir()
+        feed_file = tmp_path / "feed.csv"
+        labels_file = tmp_path / "labels.csv"
+
+        # Operator prefix
+        inv_file.write_text("prefix,expected_origin_asns,max_expected_length,owner\n203.0.113.0/24,64496,24,ISP\n")
+        snap_file = roas_dir / "roas_2026-10-26T00-00-00Z.csv"
+        # ROA with AS64496
+        snap_file.write_text("prefix,asn,maxLength\n203.0.113.0/24,64496,24\n")
+
+        base_t = 1792972800.0
+
+        # Two consecutive benign events with unexpected origin AS64498 (e.g. scrubbing or lag)
+        # Event 1: [1000s, 1300s]
+        # Event 2: [1420s, 1720s] (gap = 120s)
+        labels_file.write_text(
+            "event_id,start_time,end_time,prefix,origin_asn,type,benign,scenario,difficulty,expected_alert_type\n"
+            f"evt-1,{base_t + 1000},{base_t + 1300},203.0.113.0/24,64498,POLICY_LAG,True,test_scrubbing,easy,INVENTORY_MISMATCH\n"
+            f"evt-2,{base_t + 1420},{base_t + 1720},203.0.113.0/24,64498,POLICY_LAG,True,test_scrubbing,easy,INVENTORY_MISMATCH\n"
+        )
+
+        # Feed: Event 1 announces at 1000s; Event 2 announces at 1420s (outside 300s dedup window)
+        feed_file.write_text(
+            "timestamp,prefix,origin_asn,peer,action\n"
+            f"{base_t + 1000},203.0.113.0/24,64498,198.32.160.1,announce\n"
+            f"{base_t + 1420},203.0.113.0/24,64498,198.32.160.1,announce\n"
+        )
+
+        run, alerts = evaluate_feed(
+            feed_path=feed_file,
+            labels_path=labels_file,
+            inventory_path=inv_file,
+            roas_dir=roas_dir,
+            policy="primary_all",
+            dedup_window_seconds=300.0,
+        )
+
+        # Exactly 2 alerts emitted
+        assert len(alerts) == 2
+        # BOTH benign events must be matched 1-to-1: FP events = 2
+        assert run.event_metrics.fp == 2
+        assert run.confusion_matrix["false_positives_events"] == 2
+        assert run.confusion_matrix["true_negatives_events"] == 0
+        assert run.fp_per_benign_scenario["test_scrubbing"] == 2
+        assert run.benign_event_fp_rate["test_scrubbing"] == 1.0  # 100% of events flagged
+
+
+def test_difficulty_aggregation_totals() -> None:
+    """Assert that difficulty grouping correctly partitions anomaly events.
+    
+    Verifies easy_total + hard_total == total_anomalies (24 easy + 16 hard == 40 total anomalies).
+    """
+    run, _ = evaluate_feed(
+        feed_path="data/feed_replay.csv",
+        labels_path="data/labels.csv",
+        inventory_path="data/inventory.csv",
+        roas_dir="data/roa_snapshots",
+        policy="primary_all",
+    )
+    easy_total = run.difficulty_counts["easy"]["total"]
+    hard_total = run.difficulty_counts["hard"]["total"]
+    total_anomalies = run.confusion_matrix["total_anomalies"]
+
+    assert easy_total == 24
+    assert hard_total == 16
+    assert easy_total + hard_total == total_anomalies == 40
+    assert run.difficulty_counts["easy"]["tp"] == 24
+    assert run.difficulty_counts["hard"]["tp"] == 8
+    assert run.difficulty_recall["easy"] == 1.0
+    assert run.difficulty_recall["hard"] == 0.5
+
