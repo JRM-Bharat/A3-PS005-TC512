@@ -1,0 +1,197 @@
+{
+  "dataset": {
+    "feed": "data/feed_replay.csv",
+    "labels": "data/labels.csv",
+    "total_feed_updates": 3164,
+    "total_events": 92
+  },
+  "performance_speed": {
+    "wall_clock_time_ms_per_update": 0.0137,
+    "updates_per_second": 73014.9
+  },
+  "third_party_noise_table": {
+    "alert_type": "THIRD_PARTY_INVALID",
+    "total_injected_noise_updates": 45,
+    "alerts_emitted": 19,
+    "explanation": "Out of 45 third-party updates: ~10% are withdrawals (ignored), ~33% are outside ROA coverage (NotFound, benign non-inventory), and duplicate announcements within the 300s window are deduplicated, leaving exactly 19 distinct low-severity alerts."
+  },
+  "primary_policy_all_alerts": {
+    "policy_definition": "All operator alert types count (strictest)",
+    "event_metrics": {
+      "tp": 32,
+      "fp": 20,
+      "fn": 8,
+      "precision": 0.6154,
+      "recall": 0.8,
+      "f1": 0.6957
+    },
+    "alert_level_precision": 0.6154,
+    "bootstrap_95_ci": {
+      "precision_ci": [
+        0.5957,
+        0.814
+      ],
+      "recall_ci": [
+        0.675,
+        0.925
+      ],
+      "f1_ci": [
+        0.6506,
+        0.8372
+      ]
+    },
+    "missed_events_count": 8,
+    "missed_due_to_dedup_count": 0,
+    "scenario_recall": {
+      "exact_origin_hijack": 1.0,
+      "hijack_after_roa_change": 1.0,
+      "loose_maxlength_hijack": 0.0,
+      "subprefix_hijack": 1.0
+    },
+    "difficulty_recall": {
+      "easy": 1.0,
+      "hard": 0.5
+    },
+    "fp_per_benign_scenario": {
+      "multi_origin_anycast": 0,
+      "multi_origin_ddos_scrubbing": 8,
+      "policy_change_roa_first": 0,
+      "policy_change_roa_lag_inventory_stale": 6,
+      "policy_change_roa_lag_inventory_updated": 6,
+      "te_more_specific": 0,
+      "background_operator_noise": 0
+    },
+    "benign_event_fp_rate": {
+      "multi_origin_anycast": 0.0,
+      "multi_origin_ddos_scrubbing": 0.75,
+      "policy_change_roa_first": 0.0,
+      "policy_change_roa_lag_inventory_stale": 0.6667,
+      "policy_change_roa_lag_inventory_updated": 0.6667,
+      "te_more_specific": 0.0
+    },
+    "fp_per_1000_background": 0.0,
+    "latency": {
+      "mean_seconds": 0.0,
+      "median_seconds": 0.0,
+      "p95_seconds": 0.0,
+      "min_seconds": 0.0,
+      "max_seconds": 0.0,
+      "sample_count": 32
+    },
+    "confusion_matrix": {
+      "true_positives": 32,
+      "false_negatives": 8,
+      "false_positives_events": 14,
+      "true_negatives_events": 38,
+      "total_anomalies": 40,
+      "total_benign": 52
+    }
+  },
+  "secondary_policy_high_medium": {
+    "policy_definition": "High and Medium severity alerts only (filters low-severity INVENTORY_MISMATCH/ROA_MISSING)",
+    "event_metrics": {
+      "tp": 32,
+      "fp": 12,
+      "fn": 8,
+      "precision": 0.7273,
+      "recall": 0.8,
+      "f1": 0.7619
+    },
+    "alert_level_precision": 0.7273,
+    "scenario_recall": {
+      "exact_origin_hijack": 1.0,
+      "hijack_after_roa_change": 1.0,
+      "loose_maxlength_hijack": 0.0,
+      "subprefix_hijack": 1.0
+    },
+    "difficulty_recall": {
+      "easy": 1.0,
+      "hard": 0.5
+    },
+    "fp_per_benign_scenario": {
+      "multi_origin_anycast": 0,
+      "multi_origin_ddos_scrubbing": 0,
+      "policy_change_roa_first": 0,
+      "policy_change_roa_lag_inventory_stale": 6,
+      "policy_change_roa_lag_inventory_updated": 6,
+      "te_more_specific": 0,
+      "background_operator_noise": 0
+    },
+    "latency": {
+      "mean_seconds": 0.0,
+      "median_seconds": 0.0,
+      "p95_seconds": 0.0,
+      "min_seconds": 0.0,
+      "max_seconds": 0.0,
+      "sample_count": 32
+    },
+    "confusion_matrix": {
+      "true_positives": 32,
+      "false_negatives": 8,
+      "false_positives_events": 8,
+      "true_negatives_events": 44,
+      "total_anomalies": 40,
+      "total_benign": 52
+    }
+  },
+  "multi_seed_stability": {
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "primary_precision": {
+      "mean": 0.6154,
+      "std": 0.0,
+      "values": [
+        0.6154,
+        0.6154,
+        0.6154,
+        0.6154,
+        0.6154
+      ]
+    },
+    "primary_recall": {
+      "mean": 0.8,
+      "std": 0.0,
+      "values": [
+        0.8,
+        0.8,
+        0.8,
+        0.8,
+        0.8
+      ]
+    },
+    "primary_f1": {
+      "mean": 0.6957,
+      "std": 0.0,
+      "values": [
+        0.6957,
+        0.6957,
+        0.6957,
+        0.6957,
+        0.6957
+      ]
+    },
+    "secondary_precision": {
+      "mean": 0.7273,
+      "std": 0.0
+    },
+    "secondary_recall": {
+      "mean": 0.8,
+      "std": 0.0
+    },
+    "secondary_f1": {
+      "mean": 0.7619,
+      "std": 0.0
+    }
+  },
+  "generated_plots": [
+    "reports\\baseline_policy_comparison.png",
+    "reports\\baseline_confusion_matrix.png",
+    "reports\\baseline_scenario_recall.png",
+    "reports\\baseline_fp_breakdown.png"
+  ]
+}
