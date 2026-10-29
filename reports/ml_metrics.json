@@ -1,0 +1,795 @@
+{
+  "metadata": {
+    "model_type": "GradientBoostingClassifier",
+    "primary_seed": 777,
+    "multi_seeds": [
+      777,
+      888,
+      999
+    ],
+    "threshold": 0.05,
+    "threshold_performance": {
+      "tau_star": 0.05,
+      "validation_row_level": {
+        "precision": 0.8462,
+        "recall": 0.968,
+        "f1": 0.903
+      },
+      "test_row_level": {
+        "precision": 0.9083,
+        "recall": 0.9646,
+        "f1": 0.9356
+      },
+      "test_event_level": {
+        "precision": 0.8588,
+        "recall": 0.9481,
+        "f1": 0.9012
+      }
+    },
+    "multi_seed_interpretation": "Variance across synthetic datasets from ONE generator, not external validity.",
+    "train_frac": 0.6,
+    "val_frac": 0.2,
+    "test_frac": 0.2
+  },
+  "generator_audit": {
+    "forged_origin_attacks": {
+      "total": 120,
+      "novel_peer_percent": 50.83,
+      "known_peer_percent": 49.17,
+      "rarity_mean": 0.0006,
+      "rarity_median": 0.0004,
+      "rarity_min": 0.0004,
+      "rarity_max": 0.0048
+    },
+    "te_more_specific_benign": {
+      "total": 100,
+      "novel_peer_percent": 50.0,
+      "known_peer_percent": 50.0,
+      "rarity_mean": 0.0021,
+      "rarity_median": 0.0022,
+      "rarity_min": 0.0004,
+      "rarity_max": 0.0303
+    },
+    "other_benign_scenarios": {
+      "total": 922,
+      "novel_peer_percent": 22.02,
+      "known_peer_percent": 77.98,
+      "rarity_mean": 0.0395,
+      "rarity_median": 0.0127,
+      "rarity_min": 0.0068,
+      "rarity_max": 1.0
+    },
+    "background_traffic": {
+      "total": 25028,
+      "novel_peer_percent": 19.9,
+      "known_peer_percent": 80.1,
+      "rarity_mean": 0.0297,
+      "rarity_median": 0.0078,
+      "rarity_min": 0.0004,
+      "rarity_max": 1.0
+    }
+  },
+  "slice_statistics": {
+    "Train": {
+      "total_updates": 16002,
+      "positives": 382,
+      "negatives": 15620,
+      "pos_rate": 2.39,
+      "forged_origin": 74
+    },
+    "Val": {
+      "total_updates": 5334,
+      "positives": 125,
+      "negatives": 5209,
+      "pos_rate": 2.34,
+      "forged_origin": 25
+    },
+    "Test": {
+      "total_updates": 5334,
+      "positives": 113,
+      "negatives": 5221,
+      "pos_rate": 2.12,
+      "forged_origin": 21
+    }
+  },
+  "scenario_counts_per_slice": {
+    "exact_origin_hijack": {
+      "Train": 61,
+      "Val": 21,
+      "Test": 18,
+      "Total": 100
+    },
+    "hijack_after_roa_change": {
+      "Train": 60,
+      "Val": 20,
+      "Test": 20,
+      "Total": 100
+    },
+    "loose_maxlength_hijack": {
+      "Train": 73,
+      "Val": 25,
+      "Test": 22,
+      "Total": 120
+    },
+    "multi_origin_anycast": {
+      "Train": 47,
+      "Val": 27,
+      "Test": 26,
+      "Total": 100
+    },
+    "multi_origin_ddos_scrubbing": {
+      "Train": 60,
+      "Val": 20,
+      "Test": 20,
+      "Total": 100
+    },
+    "policy_change_roa_first": {
+      "Train": 60,
+      "Val": 20,
+      "Test": 20,
+      "Total": 100
+    },
+    "policy_change_roa_lag_inventory_stale": {
+      "Train": 60,
+      "Val": 23,
+      "Test": 17,
+      "Total": 100
+    },
+    "policy_change_roa_lag_inventory_updated": {
+      "Train": 60,
+      "Val": 23,
+      "Test": 17,
+      "Total": 100
+    },
+    "subprefix_hijack": {
+      "Train": 61,
+      "Val": 21,
+      "Test": 18,
+      "Total": 100
+    },
+    "te_more_specific": {
+      "Train": 61,
+      "Val": 21,
+      "Test": 18,
+      "Total": 100
+    }
+  },
+  "leakage_audit": {
+    "rov_state_encoded": {
+      "raw_auc": 0.8457,
+      "effective_auc": 0.8457,
+      "direction": "+",
+      "leakage_flag": false
+    },
+    "origin_in_inventory": {
+      "raw_auc": 0.3586,
+      "effective_auc": 0.6414,
+      "direction": "-",
+      "leakage_flag": false
+    },
+    "prefix_len_delta": {
+      "raw_auc": 0.5516,
+      "effective_auc": 0.5516,
+      "direction": "+",
+      "leakage_flag": false
+    },
+    "origin_new_for_prefix": {
+      "raw_auc": 0.7937,
+      "effective_auc": 0.7937,
+      "direction": "+",
+      "leakage_flag": false
+    },
+    "peer_new_for_prefix_origin": {
+      "raw_auc": 0.8929,
+      "effective_auc": 0.8929,
+      "direction": "+",
+      "leakage_flag": false
+    },
+    "more_specific_first_seen": {
+      "raw_auc": 0.6022,
+      "effective_auc": 0.6022,
+      "direction": "+",
+      "leakage_flag": false
+    },
+    "prefix_age_hours": {
+      "raw_auc": 0.4616,
+      "effective_auc": 0.5384,
+      "direction": "-",
+      "leakage_flag": false
+    },
+    "origin_rarity": {
+      "raw_auc": 0.8356,
+      "effective_auc": 0.8356,
+      "direction": "+",
+      "leakage_flag": false
+    },
+    "update_rate_30m": {
+      "raw_auc": 0.3639,
+      "effective_auc": 0.6361,
+      "direction": "-",
+      "leakage_flag": false
+    },
+    "hour_of_day": {
+      "raw_auc": 0.5275,
+      "effective_auc": 0.5275,
+      "direction": "+",
+      "leakage_flag": false
+    }
+  },
+  "shuffled_label_control": {
+    "mean_auc": 0.5522,
+    "std_auc": 0.1954,
+    "min_auc": 0.1565,
+    "max_auc": 0.8442,
+    "permutations_count": 20,
+    "scores": [
+      0.7828,
+      0.5329,
+      0.5137,
+      0.8442,
+      0.7566,
+      0.7572,
+      0.1565,
+      0.3149,
+      0.5048,
+      0.6885,
+      0.7874,
+      0.5825,
+      0.5908,
+      0.7415,
+      0.2816,
+      0.246,
+      0.4491,
+      0.5937,
+      0.5494,
+      0.3698
+    ],
+    "test_positive_rows": 113,
+    "test_positive_events": 77,
+    "variance_explanation": "High variance (measured std=0.1954, min=0.1565, max=0.8442) is expected due to small test slice size and clustered positive rows per anomaly event (multiple BGP updates per event share similar rolling features). The mean across 20 permutations is 0.5522, demonstrating that the model learns no systematic leakage on average, though this control alone does not prove complete absence of subtle leakage."
+  },
+  "feature_importances": {
+    "rov_state_encoded": 0.6452,
+    "origin_in_inventory": 0.0008,
+    "prefix_len_delta": 0.0008,
+    "origin_new_for_prefix": 0.0,
+    "peer_new_for_prefix_origin": 0.0009,
+    "more_specific_first_seen": 0.1598,
+    "prefix_age_hours": 0.0926,
+    "origin_rarity": 0.0793,
+    "update_rate_30m": 0.0204,
+    "hour_of_day": 0.0002
+  },
+  "streaming_latency": {
+    "rule_detector_ms_per_update": 0.01378,
+    "ml_model_ms_per_update": 0.649553
+  },
+  "evaluation_results": {
+    "Baseline (Primary)": {
+      "model_name": "Baseline (Primary)",
+      "event_precision": 0.5185,
+      "event_recall": 0.7273,
+      "event_f1": 0.6054,
+      "alert_precision": 0.5185,
+      "tp_events": 56,
+      "fp_events": 52,
+      "fn_events": 21,
+      "total_alerts": 108,
+      "matched_alerts": 56,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.0,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 16,
+        "policy_change_roa_lag_inventory_stale": 16,
+        "te_more_specific": 0,
+        "multi_origin_anycast": 0,
+        "multi_origin_ddos_scrubbing": 20,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    },
+    "Baseline (Secondary)": {
+      "model_name": "Baseline (Secondary)",
+      "event_precision": 0.6364,
+      "event_recall": 0.7273,
+      "event_f1": 0.6788,
+      "alert_precision": 0.6364,
+      "tp_events": 56,
+      "fp_events": 32,
+      "fn_events": 21,
+      "total_alerts": 88,
+      "matched_alerts": 56,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.0,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 16,
+        "policy_change_roa_lag_inventory_stale": 16,
+        "te_more_specific": 0,
+        "multi_origin_anycast": 0,
+        "multi_origin_ddos_scrubbing": 0,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    },
+    "ML Alone": {
+      "model_name": "ML Alone",
+      "event_precision": 0.8588,
+      "event_recall": 0.9481,
+      "event_f1": 0.9012,
+      "alert_precision": 0.8588,
+      "tp_events": 73,
+      "fp_events": 12,
+      "fn_events": 4,
+      "total_alerts": 85,
+      "matched_alerts": 73,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.8095,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 0,
+        "policy_change_roa_lag_inventory_stale": 3,
+        "te_more_specific": 8,
+        "multi_origin_anycast": 1,
+        "multi_origin_ddos_scrubbing": 0,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    },
+    "Hybrid (Primary OR ML)": {
+      "model_name": "Hybrid (Primary OR ML)",
+      "event_precision": 0.5448,
+      "event_recall": 0.9481,
+      "event_f1": 0.6919,
+      "alert_precision": 0.5448,
+      "tp_events": 73,
+      "fp_events": 61,
+      "fn_events": 4,
+      "total_alerts": 134,
+      "matched_alerts": 73,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.8095,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 16,
+        "policy_change_roa_lag_inventory_stale": 16,
+        "te_more_specific": 8,
+        "multi_origin_anycast": 1,
+        "multi_origin_ddos_scrubbing": 20,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    },
+    "Hybrid (Secondary OR ML)": {
+      "model_name": "Hybrid (Secondary OR ML)",
+      "event_precision": 0.6404,
+      "event_recall": 0.9481,
+      "event_f1": 0.7644,
+      "alert_precision": 0.6404,
+      "tp_events": 73,
+      "fp_events": 41,
+      "fn_events": 4,
+      "total_alerts": 114,
+      "matched_alerts": 73,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.8095,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 16,
+        "policy_change_roa_lag_inventory_stale": 16,
+        "te_more_specific": 8,
+        "multi_origin_anycast": 1,
+        "multi_origin_ddos_scrubbing": 0,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    }
+  },
+  "primary_run_eval_results": {
+    "Baseline (Primary)": {
+      "model_name": "Baseline (Primary)",
+      "event_precision": 0.5185,
+      "event_recall": 0.7273,
+      "event_f1": 0.6054,
+      "alert_precision": 0.5185,
+      "tp_events": 56,
+      "fp_events": 52,
+      "fn_events": 21,
+      "total_alerts": 108,
+      "matched_alerts": 56,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.0,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 16,
+        "policy_change_roa_lag_inventory_stale": 16,
+        "te_more_specific": 0,
+        "multi_origin_anycast": 0,
+        "multi_origin_ddos_scrubbing": 20,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    },
+    "Baseline (Secondary)": {
+      "model_name": "Baseline (Secondary)",
+      "event_precision": 0.6364,
+      "event_recall": 0.7273,
+      "event_f1": 0.6788,
+      "alert_precision": 0.6364,
+      "tp_events": 56,
+      "fp_events": 32,
+      "fn_events": 21,
+      "total_alerts": 88,
+      "matched_alerts": 56,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.0,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 16,
+        "policy_change_roa_lag_inventory_stale": 16,
+        "te_more_specific": 0,
+        "multi_origin_anycast": 0,
+        "multi_origin_ddos_scrubbing": 0,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    },
+    "ML Alone": {
+      "model_name": "ML Alone",
+      "event_precision": 0.8588,
+      "event_recall": 0.9481,
+      "event_f1": 0.9012,
+      "alert_precision": 0.8588,
+      "tp_events": 73,
+      "fp_events": 12,
+      "fn_events": 4,
+      "total_alerts": 85,
+      "matched_alerts": 73,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.8095,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 0,
+        "policy_change_roa_lag_inventory_stale": 3,
+        "te_more_specific": 8,
+        "multi_origin_anycast": 1,
+        "multi_origin_ddos_scrubbing": 0,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    },
+    "Hybrid (Primary OR ML)": {
+      "model_name": "Hybrid (Primary OR ML)",
+      "event_precision": 0.5448,
+      "event_recall": 0.9481,
+      "event_f1": 0.6919,
+      "alert_precision": 0.5448,
+      "tp_events": 73,
+      "fp_events": 61,
+      "fn_events": 4,
+      "total_alerts": 134,
+      "matched_alerts": 73,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.8095,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 16,
+        "policy_change_roa_lag_inventory_stale": 16,
+        "te_more_specific": 8,
+        "multi_origin_anycast": 1,
+        "multi_origin_ddos_scrubbing": 20,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    },
+    "Hybrid (Secondary OR ML)": {
+      "model_name": "Hybrid (Secondary OR ML)",
+      "event_precision": 0.6404,
+      "event_recall": 0.9481,
+      "event_f1": 0.7644,
+      "alert_precision": 0.6404,
+      "tp_events": 73,
+      "fp_events": 41,
+      "fn_events": 4,
+      "total_alerts": 114,
+      "matched_alerts": 73,
+      "scenario_recalls": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.8095,
+        "subprefix_hijack": 1.0
+      },
+      "fp_by_benign_scenario": {
+        "policy_change_roa_lag_inventory_updated": 16,
+        "policy_change_roa_lag_inventory_stale": 16,
+        "te_more_specific": 8,
+        "multi_origin_anycast": 1,
+        "multi_origin_ddos_scrubbing": 0,
+        "policy_change_roa_first": 0
+      },
+      "background_fps": 0
+    }
+  },
+  "multi_seed_aggregated_results": {
+    "Baseline (Primary)": {
+      "precision_mean": 0.5185,
+      "precision_std": 0.0,
+      "recall_mean": 0.7242,
+      "recall_std": 0.0044,
+      "f1_mean": 0.6043,
+      "f1_std": 0.0015,
+      "alert_prec_mean": 0.5185,
+      "alert_prec_std": 0.0,
+      "scenario_recalls_mean": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.0,
+        "subprefix_hijack": 1.0
+      },
+      "per_seed_scores": {
+        "seed_777": {
+          "precision": 0.5185,
+          "recall": 0.7273,
+          "f1": 0.6054,
+          "alert_precision": 0.5185
+        },
+        "seed_888": {
+          "precision": 0.5185,
+          "recall": 0.7179,
+          "f1": 0.6022,
+          "alert_precision": 0.5185
+        },
+        "seed_999": {
+          "precision": 0.5185,
+          "recall": 0.7273,
+          "f1": 0.6054,
+          "alert_precision": 0.5185
+        }
+      }
+    },
+    "Baseline (Secondary)": {
+      "precision_mean": 0.6364,
+      "precision_std": 0.0,
+      "recall_mean": 0.7242,
+      "recall_std": 0.0044,
+      "f1_mean": 0.6774,
+      "f1_std": 0.0019,
+      "alert_prec_mean": 0.6364,
+      "alert_prec_std": 0.0,
+      "scenario_recalls_mean": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.0,
+        "subprefix_hijack": 1.0
+      },
+      "per_seed_scores": {
+        "seed_777": {
+          "precision": 0.6364,
+          "recall": 0.7273,
+          "f1": 0.6788,
+          "alert_precision": 0.6364
+        },
+        "seed_888": {
+          "precision": 0.6364,
+          "recall": 0.7179,
+          "f1": 0.6747,
+          "alert_precision": 0.6364
+        },
+        "seed_999": {
+          "precision": 0.6364,
+          "recall": 0.7273,
+          "f1": 0.6788,
+          "alert_precision": 0.6364
+        }
+      }
+    },
+    "ML Alone": {
+      "precision_mean": 0.9044,
+      "precision_std": 0.0325,
+      "recall_mean": 0.9183,
+      "recall_std": 0.0261,
+      "f1_mean": 0.9104,
+      "f1_std": 0.0087,
+      "alert_prec_mean": 0.9044,
+      "alert_prec_std": 0.0325,
+      "scenario_recalls_mean": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.7049,
+        "subprefix_hijack": 1.0
+      },
+      "per_seed_scores": {
+        "seed_777": {
+          "precision": 0.8588,
+          "recall": 0.9481,
+          "f1": 0.9012,
+          "alert_precision": 0.8588
+        },
+        "seed_888": {
+          "precision": 0.9324,
+          "recall": 0.8846,
+          "f1": 0.9079,
+          "alert_precision": 0.9324
+        },
+        "seed_999": {
+          "precision": 0.9221,
+          "recall": 0.9221,
+          "f1": 0.9221,
+          "alert_precision": 0.9221
+        }
+      }
+    },
+    "Hybrid (Primary OR ML)": {
+      "precision_mean": 0.5476,
+      "precision_std": 0.0023,
+      "recall_mean": 0.9183,
+      "recall_std": 0.0261,
+      "f1_mean": 0.6859,
+      "f1_std": 0.0067,
+      "alert_prec_mean": 0.5476,
+      "alert_prec_std": 0.0023,
+      "scenario_recalls_mean": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.7049,
+        "subprefix_hijack": 1.0
+      },
+      "per_seed_scores": {
+        "seed_777": {
+          "precision": 0.5448,
+          "recall": 0.9481,
+          "f1": 0.6919,
+          "alert_precision": 0.5448
+        },
+        "seed_888": {
+          "precision": 0.5476,
+          "recall": 0.8846,
+          "f1": 0.6765,
+          "alert_precision": 0.5476
+        },
+        "seed_999": {
+          "precision": 0.5504,
+          "recall": 0.9221,
+          "f1": 0.6893,
+          "alert_precision": 0.5504
+        }
+      }
+    },
+    "Hybrid (Secondary OR ML)": {
+      "precision_mean": 0.6476,
+      "precision_std": 0.0051,
+      "recall_mean": 0.9183,
+      "recall_std": 0.0261,
+      "f1_mean": 0.7593,
+      "f1_std": 0.0066,
+      "alert_prec_mean": 0.6476,
+      "alert_prec_std": 0.0051,
+      "scenario_recalls_mean": {
+        "exact_origin_hijack": 1.0,
+        "hijack_after_roa_change": 1.0,
+        "loose_maxlength_hijack": 0.7049,
+        "subprefix_hijack": 1.0
+      },
+      "per_seed_scores": {
+        "seed_777": {
+          "precision": 0.6404,
+          "recall": 0.9481,
+          "f1": 0.7644,
+          "alert_precision": 0.6404
+        },
+        "seed_888": {
+          "precision": 0.6509,
+          "recall": 0.8846,
+          "f1": 0.75,
+          "alert_precision": 0.6509
+        },
+        "seed_999": {
+          "precision": 0.6514,
+          "recall": 0.9221,
+          "f1": 0.7634,
+          "alert_precision": 0.6514
+        }
+      }
+    }
+  },
+  "bootstrap_95_ci": {
+    "Baseline (Primary)": {
+      "precision_ci": [
+        0.4622,
+        0.5825
+      ],
+      "recall_ci": [
+        0.6364,
+        0.8312
+      ],
+      "f1_ci": [
+        0.5402,
+        0.6742
+      ]
+    },
+    "Baseline (Secondary)": {
+      "precision_ci": [
+        0.5612,
+        0.7195
+      ],
+      "recall_ci": [
+        0.6364,
+        0.8312
+      ],
+      "f1_ci": [
+        0.6049,
+        0.7529
+      ]
+    },
+    "ML Alone": {
+      "precision_ci": [
+        0.7935,
+        0.9231
+      ],
+      "recall_ci": [
+        0.8961,
+        0.987
+      ],
+      "f1_ci": [
+        0.8554,
+        0.9434
+      ]
+    },
+    "Hybrid (Primary OR ML)": {
+      "precision_ci": [
+        0.5035,
+        0.5923
+      ],
+      "recall_ci": [
+        0.8961,
+        0.987
+      ],
+      "f1_ci": [
+        0.6509,
+        0.7343
+      ]
+    },
+    "Hybrid (Secondary OR ML)": {
+      "precision_ci": [
+        0.5854,
+        0.7019
+      ],
+      "recall_ci": [
+        0.8961,
+        0.987
+      ],
+      "f1_ci": [
+        0.7172,
+        0.8111
+      ]
+    }
+  }
+}
