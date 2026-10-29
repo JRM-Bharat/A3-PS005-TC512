@@ -1,7 +1,7 @@
 {
   "version": "generator v2",
   "random_seed": 5,
-  "generated_at": "2026-10-27T19:57:03.365976+00:00",
+  "generated_at": "2026-10-29T19:49:47.073784+00:00",
   "start_time": "2026-10-26T00:00:00+00:00",
   "end_time": "2026-10-27T00:00:00+00:00",
   "duration_hours": 24,
@@ -28,6 +28,6 @@
     "v2: Split policy_change_roa_lag into policy_change_roa_lag_inventory_updated and policy_change_roa_lag_inventory_stale",
     "v2: Added ~1.5% third-party RFC 6811 Invalid background routes tagged as THIRD_PARTY_INVALID",
     "v2: Balanced peer novelty across benign TE and forged anomalies to prevent trivial feature leakage",
-    "v2: Spaced recurring scenario events beyond 300s dedup window to allow consistent event-level evaluation"
+    "v2: Multi-slice time-spread support for ML scale datasets across Train, Val, and Test boundaries"
   ]
 }
