@@ -1,0 +1,33 @@
+{
+  "version": "generator v2",
+  "random_seed": 999,
+  "generated_at": "2026-10-29T19:23:17.210400+00:00",
+  "start_time": "2026-10-26T00:00:00+00:00",
+  "end_time": "2026-10-27T00:00:00+00:00",
+  "duration_hours": 24,
+  "total_feed_updates": 31740,
+  "total_announcements": 26641,
+  "total_withdrawals": 5099,
+  "total_labelled_events": 1020,
+  "anomaly_events_count": 420,
+  "benign_events_count": 600,
+  "scenario_counts": {
+    "exact_origin_hijack": 100,
+    "subprefix_hijack": 100,
+    "hijack_after_roa_change": 100,
+    "loose_maxlength_hijack": 120,
+    "multi_origin_anycast": 100,
+    "multi_origin_ddos_scrubbing": 100,
+    "policy_change_roa_first": 100,
+    "policy_change_roa_lag_inventory_updated": 100,
+    "policy_change_roa_lag_inventory_stale": 100,
+    "te_more_specific": 100
+  },
+  "changelog": [
+    "v2: Made loose_maxlength_hijack a forged-origin more-specific (ROV Valid, origin in inventory; baseline misses)",
+    "v2: Split policy_change_roa_lag into policy_change_roa_lag_inventory_updated and policy_change_roa_lag_inventory_stale",
+    "v2: Added ~1.5% third-party RFC 6811 Invalid background routes tagged as THIRD_PARTY_INVALID",
+    "v2: Balanced peer novelty across benign TE and forged anomalies to prevent trivial feature leakage",
+    "v2: Multi-slice time-spread support for ML scale datasets across Train, Val, and Test boundaries"
+  ]
+}

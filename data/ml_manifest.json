@@ -1,0 +1,33 @@
+{
+  "version": "generator v2",
+  "random_seed": 777,
+  "generated_at": "2026-10-27T21:11:59.884211+00:00",
+  "start_time": "2026-10-26T00:00:00+00:00",
+  "end_time": "2026-10-27T00:00:00+00:00",
+  "duration_hours": 24,
+  "total_feed_updates": 31720,
+  "total_announcements": 26792,
+  "total_withdrawals": 4928,
+  "total_labelled_events": 960,
+  "anomaly_events_count": 440,
+  "benign_events_count": 520,
+  "scenario_counts": {
+    "exact_origin_hijack": 120,
+    "subprefix_hijack": 120,
+    "hijack_after_roa_change": 80,
+    "loose_maxlength_hijack": 120,
+    "multi_origin_anycast": 100,
+    "multi_origin_ddos_scrubbing": 80,
+    "policy_change_roa_first": 80,
+    "policy_change_roa_lag_inventory_updated": 60,
+    "policy_change_roa_lag_inventory_stale": 60,
+    "te_more_specific": 140
+  },
+  "changelog": [
+    "v2: Made loose_maxlength_hijack a forged-origin more-specific (ROV Valid, origin in inventory; baseline misses)",
+    "v2: Split policy_change_roa_lag into policy_change_roa_lag_inventory_updated and policy_change_roa_lag_inventory_stale",
+    "v2: Added ~1.5% third-party RFC 6811 Invalid background routes tagged as THIRD_PARTY_INVALID",
+    "v2: Balanced peer novelty across benign TE and forged anomalies to prevent trivial feature leakage",
+    "v2: Spaced recurring scenario events beyond 300s dedup window to allow consistent event-level evaluation"
+  ]
+}
