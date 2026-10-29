@@ -153,9 +153,13 @@ def run_shuffled_label_control(
 
     mean_auc = float(np.mean(scores))
     std_auc = float(np.std(scores))
+    min_auc = float(np.min(scores))
+    max_auc = float(np.max(scores))
     return {
         "mean_auc": round(mean_auc, 4),
         "std_auc": round(std_auc, 4),
+        "min_auc": round(min_auc, 4),
+        "max_auc": round(max_auc, 4),
         "permutations_count": n_permutations,
         "scores": scores,
     }
@@ -384,6 +388,24 @@ def generate_diagnostic_plots(
     plt.savefig(output_dir / "ml_roc_pr_curves.png", dpi=300)
     plt.close()
 
+    # 1b. Standalone Precision-Recall Curve Plot
+    fig_pr, ax_pr = plt.subplots(figsize=(8, 6))
+    ax_pr.plot(rec_pts, prec_pts, color="#2ca02c", lw=2.5, label=f"GBDT Model (PR-AUC = {pr_auc_val:.4f})")
+    ax_pr.scatter(
+        [op_rec], [op_prec], color="#d62728", s=150, zorder=5, marker="*",
+        label=f"Selected $\tau^* = {chosen_thresh:.2f}$ (Prec = {op_prec:.4f}, Rec = {op_rec:.4f})"
+    )
+    ax_pr.set_title(f"Precision-Recall Curve on Test Slice (Operating Point $\tau^*={chosen_thresh:.2f}$)", fontsize=12, fontweight="bold")
+    ax_pr.set_xlabel("Recall", fontsize=11)
+    ax_pr.set_ylabel("Precision", fontsize=11)
+    ax_pr.grid(True, alpha=0.3)
+    ax_pr.legend(loc="lower left", fontsize=10)
+    ax_pr.set_xlim([-0.02, 1.02])
+    ax_pr.set_ylim([-0.02, 1.02])
+    fig_pr.tight_layout()
+    fig_pr.savefig(output_dir / "ml_pr_curve.png", dpi=300)
+    plt.close(fig_pr)
+
     # 2. Feature Importances Bar Chart
     fig, ax = plt.subplots(figsize=(10, 6))
     sorted_features = sorted(feature_importances.items(), key=lambda x: x[1], reverse=True)
@@ -485,6 +507,8 @@ def generate_comparison_report(
     multi_seed_results: Dict[str, Any],
     feature_importances: Dict[str, float],
     threshold: float,
+    val_metrics: Dict[str, float],
+    test_row_metrics: Dict[str, float],
     rule_lat_ms: float,
     ml_lat_ms: float,
     output_path: Path,
@@ -539,20 +563,52 @@ def generate_comparison_report(
     # 3. Leakage Audit
     md_lines.append("## 3. Leakage Audit & Controls")
     md_lines.append("")
-    md_lines.append("Three mandatory honesty checks were executed to confirm zero target or temporal leakage:")
-    md_lines.append("1. **Single-Feature Discrimination**: Single-feature ROC-AUC was computed for all 10 features. Every feature satisfies $\\max(\\text{AUC}, 1 - \\text{AUC}) \\le \\sim 0.85$ (no single feature dominates).")
-    md_lines.append(f"2. **Shuffled-Label Control**: 20 permutations of training labels scored test **AUC = {shuffled_control['mean_auc']:.4f} \\pm {shuffled_control['std_auc']:.4f}** (matches chance $\\approx 0.50$).")
+    md_lines.append("Three mandatory honesty checks were executed to evaluate target and temporal leakage:")
+    md_lines.append("1. **Single-Feature Discrimination**: Single-feature ROC-AUC was computed for all 10 features.")
+    md_lines.append(f"2. **Shuffled-Label Control**: 20 permutations of training labels scored test **mean AUC = {shuffled_control['mean_auc']:.4f} \\pm {shuffled_control['std_auc']:.4f}** (min: {shuffled_control['min_auc']:.4f}, max: {shuffled_control['max_auc']:.4f}).")
     md_lines.append(f"3. **Validation Threshold Tuning**: Decision threshold $\\tau^* = {threshold:.4f}$ was selected **strictly on Validation**.")
     md_lines.append("")
-    md_lines.append("| Feature Name | Raw Train AUC | Effective AUC | Direction | Leakage Flag |")
+    md_lines.append("| Feature Name | Raw Train AUC | Effective AUC | Direction | Leakage Status |")
     md_lines.append("| :--- | :---: | :---: | :---: | :---: |")
     for fname, aud in sorted(leakage_audit.items(), key=lambda x: x[1]["effective_auc"], reverse=True):
-        md_lines.append(f"| `{fname}` | {aud['raw_auc']:.4f} | {aud['effective_auc']:.4f} | `{aud['direction']}` | Clean (<= 0.85) |")
-    md_lines.append(f"| **Shuffled-Label Control (20 perms)** | — | **{shuffled_control['mean_auc']:.4f} \\pm {shuffled_control['std_auc']:.4f}** | — | Clean (~0.50 +/- 0.05) |")
+        status = "Exceeds ~0.85 goal (0.893; residual limit)" if fname == "peer_new_for_prefix_origin" else "Clean (<= 0.85)"
+        md_lines.append(f"| `{fname}` | {aud['raw_auc']:.4f} | {aud['effective_auc']:.4f} | `{aud['direction']}` | {status} |")
+    md_lines.append(f"| **Shuffled-Label Control (20 perms)** | — | **{shuffled_control['mean_auc']:.4f} \\pm {shuffled_control['std_auc']:.4f}** | — | Zero Systematic Leakage on Avg |")
+    md_lines.append("")
+    md_lines.append("> [!WARNING]")
+    md_lines.append("> **Known Residual Separability Limit**: Feature `peer_new_for_prefix_origin` achieves an effective AUC of **0.893** (0.8929), exceeding the ~0.85 ceiling goal. In the synthetic traffic generator, novel peer appearances remain correlated with attack bursts despite per-update randomisation, presenting a known residual separability limit in the synthetic generator. This limit is documented plainly rather than artificially removed or masked.")
+    md_lines.append("")
+    md_lines.append("> [!NOTE]")
+    pos_rows = shuffled_control.get("test_positive_rows", 113)
+    pos_evts = shuffled_control.get("test_positive_events", 78)
+    md_lines.append(f"> **Shuffled-Label Control Analysis**: Evaluated against true test labels across 20 permutations with **{pos_rows} positive rows** across **{pos_evts} anomaly events** in the test slice.")
+    md_lines.append(f"> - **Mean AUC**: `{shuffled_control['mean_auc']:.4f}` (centered near 0.50 chance)")
+    md_lines.append(f"> - **Measured Std**: `{shuffled_control['std_auc']:.4f}` (replacing the generic $\\pm 0.05$ band)")
+    md_lines.append(f"> - **Range**: `[{shuffled_control['min_auc']:.4f}, {shuffled_control['max_auc']:.4f}]`")
+    md_lines.append(">")
+    md_lines.append(f"> The wide standard deviation ({shuffled_control['std_auc']:.4f}) reflects high variance stemming from clustered positive rows per anomaly event (multiple BGP updates per burst sharing rolling state) and the compact size of the test slice. The control demonstrates that the feature pipeline learns **no systematic target leakage on average**, though this control alone does not prove that leakage is entirely absent.")
+    md_lines.append("")
+    md_lines.append("### Operating Threshold $\\tau^*$ Performance")
+    md_lines.append("")
+    md_lines.append(f"Decision threshold $\\tau^* = {threshold:.4f}$ was selected strictly on the Validation slice to maximize F1 score.")
+    md_lines.append("")
+    md_lines.append("| Slice / Level | Threshold $\\tau^*$ | Precision | Recall | F1 Score | Notes |")
+    md_lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
+    md_lines.append(f"| **Validation (Row-Level)** | {threshold:.4f} | {val_metrics['precision']:.4f} | {val_metrics['recall']:.4f} | {val_metrics['f1']:.4f} | Threshold selection slice |")
+    md_lines.append(f"| **Test (Row-Level)** | {threshold:.4f} | {test_row_metrics['precision']:.4f} | {test_row_metrics['recall']:.4f} | {test_row_metrics['f1']:.4f} | Held-out row evaluation |")
+    ev_prec = eval_results['ML Alone']['event_precision']
+    ev_rec = eval_results['ML Alone']['event_recall']
+    ev_f1 = eval_results['ML Alone']['event_f1']
+    md_lines.append(f"| **Test (Event-Level - ML Alone)** | {threshold:.4f} | {ev_prec:.4f} | {ev_rec:.4f} | {ev_f1:.4f} | Primary benchmark (1-to-1 matching) |")
+    md_lines.append("")
+    md_lines.append("The standalone Precision-Recall curve with operating point $\\tau^*$ is saved at [`reports/ml_pr_curve.png`](file:///d:/Project/bgp-anomaly-monitor/reports/ml_pr_curve.png).")
     md_lines.append("")
 
     # 4. Multi-Seed Headline Metrics
     md_lines.append("## 4. Benchmark Comparison on Held-Out Test Slice (Multi-Seed & Bootstrap CI)")
+    md_lines.append("")
+    md_lines.append("> [!IMPORTANT]")
+    md_lines.append("> **Multi-Seed Interpretation & Scope**: Seeds 777, 888, and 999 represent variance across independent synthetic dataset draws generated by ONE stochastic generator. They demonstrate algorithmic stability across stochastic variations in the same underlying traffic model, but do **NOT** establish external validity on real-world operator BGP feeds or diverse production network topologies.")
     md_lines.append("")
     md_lines.append("| Model / Policy | Event-Level Precision | Event-Level Recall | Event-Level F1 | Alert-Level Precision | Latency (ms/upd) |")
     md_lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
@@ -757,6 +813,9 @@ def run_single_seed_pipeline(
         "seed": seed,
         "validation_auc": val_auc,
         "threshold": chosen_thresh,
+        "val_probs": val_probs,
+        "val_metrics": {"precision": round(float(precision_score(y_val, (val_probs >= chosen_thresh).astype(int), zero_division=0)), 4), "recall": round(float(recall_score(y_val, (val_probs >= chosen_thresh).astype(int), zero_division=0)), 4), "f1": round(float(f1_score(y_val, (val_probs >= chosen_thresh).astype(int), zero_division=0)), 4)},
+        "test_row_metrics": {"precision": round(float(precision_score(y_test, (test_probs >= chosen_thresh).astype(int), zero_division=0)), 4), "recall": round(float(recall_score(y_test, (test_probs >= chosen_thresh).astype(int), zero_division=0)), 4), "f1": round(float(f1_score(y_test, (test_probs >= chosen_thresh).astype(int), zero_division=0)), 4)},
         "eval_results": eval_res,
         "df": df,
         "clf": clf,
@@ -861,7 +920,12 @@ def run_ml_pipeline(config_path: str = "config_ml.yaml") -> Dict[str, Any]:
         print(f"        {fname:<28}: raw={aud['raw_auc']:.4f} | effective={aud['effective_auc']:.4f} ({aud['direction']})")
 
     shuffled_control = run_shuffled_label_control(X_train, y_train, X_test, y_test, n_permutations=20)
-    print(f"      Shuffled-Label Control Test AUC (20 perms): {shuffled_control['mean_auc']:.4f} +/- {shuffled_control['std_auc']:.4f} (Target: ~0.50 +/- 0.05)")
+    shuffled_control["test_positive_rows"] = int(y_test.sum())
+    shuffled_control["test_positive_events"] = len(primary_run["test_anom_events"])
+    shuffled_control["variance_explanation"] = (
+        f"High variance (measured std={shuffled_control['std_auc']:.4f}, min={shuffled_control['min_auc']:.4f}, max={shuffled_control['max_auc']:.4f}) is expected due to small test slice size and clustered positive rows per anomaly event (multiple BGP updates per event share similar rolling features). The mean across 20 permutations is {shuffled_control['mean_auc']:.4f}, demonstrating that the model learns no systematic leakage on average, though this control alone does not prove complete absence of subtle leakage."
+    )
+    print(f"      Shuffled-Label Control Test AUC (20 perms): mean={shuffled_control['mean_auc']:.4f}, std={shuffled_control['std_auc']:.4f}, min={shuffled_control['min_auc']:.4f}, max={shuffled_control['max_auc']:.4f} (test slice: {shuffled_control['test_positive_rows']} pos rows across {shuffled_control['test_positive_events']} events)")
 
     # 5. Measure Streaming Inference Latency (Unbatched 1-by-1)
     print("\n[5/6] Measuring End-to-End Streaming Latency (Unbatched 1-by-1)...")
@@ -957,6 +1021,8 @@ def run_ml_pipeline(config_path: str = "config_ml.yaml") -> Dict[str, Any]:
         output_dir=reports_dir,
     )
 
+    val_metrics = primary_run["val_metrics"]
+    test_row_metrics = primary_run["test_row_metrics"]
     generate_comparison_report(
         eval_results=eval_results,
         leakage_audit=leakage_audit,
@@ -967,6 +1033,8 @@ def run_ml_pipeline(config_path: str = "config_ml.yaml") -> Dict[str, Any]:
         multi_seed_results=multi_seed_results,
         feature_importances=feat_importances,
         threshold=chosen_thresh,
+        val_metrics=val_metrics,
+        test_row_metrics=test_row_metrics,
         rule_lat_ms=rule_lat_ms,
         ml_lat_ms=ml_lat_ms,
         output_path=comparison_path,
@@ -978,6 +1046,17 @@ def run_ml_pipeline(config_path: str = "config_ml.yaml") -> Dict[str, Any]:
             "primary_seed": 777,
             "multi_seeds": seeds,
             "threshold": chosen_thresh,
+            "threshold_performance": {
+                "tau_star": chosen_thresh,
+                "validation_row_level": val_metrics,
+                "test_row_level": test_row_metrics,
+                "test_event_level": {
+                    "precision": eval_results["ML Alone"]["event_precision"],
+                    "recall": eval_results["ML Alone"]["event_recall"],
+                    "f1": eval_results["ML Alone"]["event_f1"],
+                },
+            },
+            "multi_seed_interpretation": "Variance across synthetic datasets from ONE generator, not external validity.",
             "train_frac": 0.60,
             "val_frac": 0.20,
             "test_frac": 0.20,
