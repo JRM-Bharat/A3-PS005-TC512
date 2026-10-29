@@ -63,6 +63,7 @@ class ScenarioInjector:
         self,
         config_path: str | Path = "config.yaml",
         seed: Optional[int] = None,
+        inventory_path: Optional[str | Path] = None,
     ) -> None:
         self.config_path = Path(config_path)
         with self.config_path.open("r", encoding="utf-8") as f:
@@ -100,7 +101,11 @@ class ScenarioInjector:
         self.t_test_start = self.start_time + 19.2 * 3600.0
 
         # Load inventory to know monitored prefixes
-        inv_path = self.config.get("paths", {}).get("inventory", "data/inventory.csv")
+        if inventory_path is not None:
+            inv_path = str(inventory_path)
+        else:
+            default_inv = "data/ml_inventory.csv" if "ml" in str(self.config_path).lower() else "data/inventory.csv"
+            inv_path = self.config.get("paths", {}).get("inventory", default_inv)
         self.inventory = PrefixInventory.load_from_csv(inv_path)
 
         # Background external Internet prefixes (benign non-inventory)
@@ -906,9 +911,13 @@ class ScenarioInjector:
         return manifest
 
 
-def generate_synthetic_data(config_path: str = "config.yaml", seed: Optional[int] = None) -> Dict[str, Any]:
+def generate_synthetic_data(
+    config_path: str = "config.yaml",
+    seed: Optional[int] = None,
+    inventory_path: Optional[str | Path] = None,
+) -> Dict[str, Any]:
     """Helper entry point for dataset generation."""
-    injector = ScenarioInjector(config_path=config_path, seed=seed)
+    injector = ScenarioInjector(config_path=config_path, seed=seed, inventory_path=inventory_path)
     return injector.save_to_disk()
 
 

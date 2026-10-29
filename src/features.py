@@ -187,8 +187,8 @@ class RollingHistory:
 def extract_features_from_feed(
     feed_path: str,
     labels_path: str,
-    inventory_path: str,
-    roas_dir: str,
+    inventory_path: str = "data/ml_inventory.csv",
+    roas_dir: str = "data/ml_roa_snapshots",
     announcements_only: bool = True,
 ) -> pd.DataFrame:
     """Process the entire feed chronologically and return a feature+label DataFrame.
