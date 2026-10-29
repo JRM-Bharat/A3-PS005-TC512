@@ -486,3 +486,87 @@ class TestRollingHistory:
         upd6 = self._make_update(base_t + 5 * 60, "8.8.8.0/24", 15169)
         feats6 = hist.compute_features(upd6, inv, store)
         assert feats6["update_rate_30m"] == 5.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Pipeline Audit and Artifact Verification
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestMLPipelineArtifacts:
+    def test_compute_leakage_audit_structure(self, feature_df):
+        from src.features import FEATURE_NAMES
+        from src.train_ml import compute_leakage_audit, time_split_df
+
+        train, val, test = time_split_df(feature_df, train_frac=0.60, val_frac=0.20)
+        audit = compute_leakage_audit(train[FEATURE_NAMES], train["label"], FEATURE_NAMES)
+
+        assert len(audit) == len(FEATURE_NAMES)
+        for f in FEATURE_NAMES:
+            assert f in audit
+            assert "raw_auc" in audit[f]
+            assert "effective_auc" in audit[f]
+            assert 0.5 <= audit[f]["effective_auc"] <= 1.0
+            assert audit[f]["leakage_flag"] is False
+
+    def test_evaluate_test_slice_calculation(self):
+        from src.train_ml import evaluate_test_slice
+        from src.rules import Alert
+
+        # Synthetic test events
+        anom_events = [
+            {"event_id": "e1", "start_time": 1000.0, "end_time": 1200.0, "prefix": "198.18.1.0/24", "origin_asn": 64510, "scenario": "loose_maxlength_hijack", "benign": False},
+            {"event_id": "e2", "start_time": 1500.0, "end_time": 1700.0, "prefix": "192.0.2.0/24", "origin_asn": 65001, "scenario": "exact_origin_hijack", "benign": False},
+        ]
+        ben_events = [
+            {"event_id": "b1", "start_time": 2000.0, "end_time": 2200.0, "prefix": "203.0.113.0/24", "origin_asn": 64498, "scenario": "multi_origin_ddos_scrubbing", "benign": True},
+        ]
+        # Alerts matching e1 and b1
+        alerts = [
+            Alert(alert_id="a1", time=1050.0, type="ML_ANOMALY", prefix="198.18.1.0/24", origin_asn=64510, severity="high"),
+            Alert(alert_id="a2", time=2050.0, type="INVENTORY_MISMATCH", prefix="203.0.113.0/24", origin_asn=64498, severity="low"),
+        ]
+
+        res = evaluate_test_slice("test_model", alerts, anom_events, ben_events)
+        assert res["tp_events"] == 1
+        assert res["fn_events"] == 1
+        assert res["fp_events"] == 1
+        assert res["event_precision"] == 0.5
+        assert res["event_recall"] == 0.5
+        assert res["event_f1"] == 0.5
+        assert res["scenario_recalls"]["loose_maxlength_hijack"] == 1.0
+        assert res["scenario_recalls"]["exact_origin_hijack"] == 0.0
+        assert res["fp_by_benign_scenario"]["multi_origin_ddos_scrubbing"] == 1
+
+    def test_saved_ml_artifacts_exist_and_valid(self):
+        """Verify saved json, markdown report, and plots exist and are non-empty."""
+        import json
+        from pathlib import Path
+
+        reports_dir = Path("reports")
+        metrics_file = reports_dir / "ml_metrics.json"
+        report_file = reports_dir / "comparison.md"
+
+        assert metrics_file.exists(), "ml_metrics.json missing"
+        assert report_file.exists(), "comparison.md missing"
+
+        with open(metrics_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert "metadata" in data
+        assert "slice_statistics" in data
+        assert "leakage_audit" in data
+        assert "evaluation_results" in data
+        assert "Baseline (Primary)" in data["evaluation_results"]
+        assert "ML Alone" in data["evaluation_results"]
+        assert "Hybrid (Primary OR ML)" in data["evaluation_results"]
+
+        for plot_name in [
+            "ml_roc_pr_curves.png",
+            "ml_feature_importances.png",
+            "ml_leakage_audit_auc.png",
+            "ml_baseline_hybrid_comparison.png",
+        ]:
+            plot_path = reports_dir / plot_name
+            assert plot_path.exists(), f"Missing plot: {plot_name}"
+            assert plot_path.stat().st_size > 5000, f"Plot {plot_name} is unexpectedly small"
+

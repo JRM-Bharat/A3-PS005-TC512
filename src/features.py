@@ -134,9 +134,9 @@ class RollingHistory:
         # ── Feature 6: more_specific_first_seen (past state) ─────────────────
         ms_new = float(prefix_str not in self.prefix_first_seen)
 
-        # ── Feature 7: prefix_age_hours (past state) ─────────────────────────
+        # ── Feature 7: prefix_age_hours (past state, rolling 6h horizon) ─────
         if prefix_str in self.prefix_first_seen:
-            age_hours = (t - self.prefix_first_seen[prefix_str]) / 3600.0
+            age_hours = min((t - self.prefix_first_seen[prefix_str]) / 3600.0, 6.0)
         else:
             age_hours = 0.0
 
@@ -222,16 +222,13 @@ def extract_features_from_feed(
                 "scenario": row["scenario"].strip(),
             })
 
-    # Separate anomaly events (positive class) and benign events (negative class)
-    anomaly_labels = [lb for lb in labels if not lb["benign"]]
-
-    def _is_anomaly(t: float, pstr: str, asn: int) -> Tuple[bool, str]:
+    def _match_event(t: float, pstr: str, asn: int) -> Tuple[bool, str]:
         """Return (is_anomaly, scenario) for this update."""
-        for lb in anomaly_labels:
+        for lb in labels:
             if lb["prefix"] == pstr and lb["origin_asn"] == asn:
                 if lb["start_time"] - 5.0 <= t <= lb["end_time"] + 5.0:
-                    return True, lb["scenario"]
-        return False, ""
+                    return not lb["benign"], lb["scenario"]
+        return False, "background"
 
     history = RollingHistory()
     rows: List[Dict[str, Any]] = []
@@ -243,12 +240,12 @@ def extract_features_from_feed(
         prefix_str = str(update.prefix)
         feats = history.compute_features(update, inv, store)
 
-        is_anom, scenario = _is_anomaly(update.timestamp, prefix_str, update.origin_asn)
+        is_anom, scenario = _match_event(update.timestamp, prefix_str, update.origin_asn)
 
         row = dict(feats)
         row["label"] = 1 if is_anom else 0
         row["timestamp"] = update.timestamp
-        row["scenario"] = scenario if is_anom else "benign"
+        row["scenario"] = scenario
         rows.append(row)
 
     df = pd.DataFrame(rows, columns=FEATURE_NAMES + ["label", "timestamp", "scenario"])
