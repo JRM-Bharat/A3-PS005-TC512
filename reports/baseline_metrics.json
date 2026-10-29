@@ -9,8 +9,8 @@
   },
   "headline_metric_rationale": "Event-level precision is preferred as the headline metric because network security incidents are event windows (e.g. hijack attacks, scrubbing activations). Event-level metrics align directly with the confusion matrix (TP + FP + TN + FN = Total Events) and prevent alert-frequency skew.",
   "performance_speed": {
-    "wall_clock_time_ms_per_update": 0.014,
-    "updates_per_second": 71613.4
+    "timing_report": "reports/baseline_timing.json",
+    "note": "Wall-clock timings are stored in baseline_timing.json so baseline_metrics.json remains bitwise reproducible across runs."
   },
   "third_party_noise_table": {
     "alert_type": "THIRD_PARTY_INVALID",
