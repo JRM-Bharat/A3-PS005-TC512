@@ -10,12 +10,12 @@ paths:
   baseline_metrics: reports/baseline_metrics.json
   comparison_report: reports/comparison.md
   feed_replay: data/ml_feed_replay.csv
-  inventory: data/inventory.csv
+  inventory: data/ml_inventory.csv
   labels: data/ml_labels.csv
   manifest: data/ml_manifest.json
   ml_metrics: reports/ml_metrics.json
   reports_dir: reports
-  roa_snapshots_dir: data/roa_snapshots
+  roa_snapshots_dir: data/ml_roa_snapshots
 replay:
   default_speed_multiplier: 0.0
   filter_withdrawals: false

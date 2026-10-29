@@ -631,8 +631,8 @@ def run_single_seed_pipeline(
         cfg = yaml.safe_load(f)
 
     paths = cfg["paths"]
-    roas_dir = paths["roa_snapshots_dir"]
-    inv_path = paths["inventory"]
+    roas_dir = paths.get("roa_snapshots_dir", "data/ml_roa_snapshots")
+    inv_path = paths.get("inventory", "data/ml_inventory.csv")
 
     # Generate dataset for this seed
     feed_path = f"data/ml_feed_seed_{seed}.csv"
@@ -786,8 +786,8 @@ def run_ml_pipeline(config_path: str = "config_ml.yaml") -> Dict[str, Any]:
     reports_dir = Path(paths["reports_dir"])
     metrics_path = Path(paths["ml_metrics"])
     comparison_path = Path(paths["comparison_report"])
-    inv_path = paths["inventory"]
-    roas_dir = paths["roa_snapshots_dir"]
+    inv_path = paths.get("inventory", "data/ml_inventory.csv")
+    roas_dir = paths.get("roa_snapshots_dir", "data/ml_roa_snapshots")
 
     # 1. Multi-Seed Runs (Seeds 777, 888, 999)
     seeds = [777, 888, 999]
