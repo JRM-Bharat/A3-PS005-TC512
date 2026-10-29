@@ -1,0 +1,7 @@
+prefix,expected_origin_asns,max_expected_length,owner
+198.51.100.0/22,"13335, 13336, 13337, 13338",24,GlobalCloud CDN
+2001:db8:1000::/36,13335,48,GlobalCloud CDN IPv6
+203.0.113.0/24,64496,24,Regional-ISP-Alpha
+192.0.2.0/24,"64500, 64501",24,FinTech Anycast
+198.18.0.0/15,64510,24,Enterprise Campus
+2001:db8:feed::/48,64520,48,SecureCorp IPv6
