@@ -15,6 +15,7 @@ Computes comprehensive metrics for the baseline rule detector:
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass, field
@@ -146,6 +147,10 @@ def evaluate_feed(
     for update in replay.stream():
         alert = detector.process_update(update)
         if alert:
+            alt_hash = hashlib.sha256(
+                f"{alert.prefix}_{alert.origin_asn}_{alert.time:.6f}".encode("utf-8")
+            ).hexdigest()[:8]
+            alert.alert_id = f"alt-{alt_hash}"
             alerts.append(alert)
     t_end_wall = time.perf_counter()
 
@@ -684,6 +689,15 @@ def main() -> None:
         for a in all_alerts:
             f.write(json.dumps(a.to_dict()) + "\n")
 
+    # Write wall-clock timings to a separate file (reports/baseline_timing.json) so evaluate does not dirty baseline_metrics.json
+    timing_file = out_dir / "baseline_timing.json"
+    timing_data = {
+        "wall_clock_time_ms_per_update": run_primary.wall_clock_time_ms_per_update,
+        "updates_per_second": run_primary.updates_per_second,
+    }
+    with timing_file.open("w", encoding="utf-8") as tf:
+        json.dump(timing_data, tf, indent=2)
+
     # Compute Bootstrap CI for Primary Policy over EVENTS
     bootstrap_ci = compute_bootstrap_ci(
         run=run_primary,
@@ -715,8 +729,8 @@ def main() -> None:
             "with the confusion matrix (TP + FP + TN + FN = Total Events) and prevent alert-frequency skew."
         ),
         "performance_speed": {
-            "wall_clock_time_ms_per_update": run_primary.wall_clock_time_ms_per_update,
-            "updates_per_second": run_primary.updates_per_second,
+            "timing_report": "reports/baseline_timing.json",
+            "note": "Wall-clock timings are stored in baseline_timing.json so baseline_metrics.json remains bitwise reproducible across runs.",
         },
         "third_party_noise_table": {
             "alert_type": "THIRD_PARTY_INVALID",

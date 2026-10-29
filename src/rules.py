@@ -39,9 +39,16 @@ Strict Rule Precedence:
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Tuple, Union
+
+
+def make_deterministic_alert_id(prefix: str, origin_asn: int, timestamp: float) -> str:
+    """Generate deterministic alert ID from prefix, origin ASN, and timestamp."""
+    payload = f"{prefix}_{origin_asn}_{timestamp:.6f}"
+    return f"alt-{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:8]}"
 
 from src.inventory import InventoryItem, PrefixInventory
 from src.replay import BGPUpdate
@@ -140,7 +147,7 @@ class RuleBasedDetector:
         # 1. ORIGIN_HIJACK: Exact inventory prefix announced by unauthorized origin with Invalid/NotFound ROV
         if inv_exact is not None and not origin_in_inventory and not rov_res.is_valid:
             candidate_alert = Alert(
-                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                alert_id=make_deterministic_alert_id(prefix_str, origin_asn, timestamp),
                 time=timestamp,
                 type="ORIGIN_HIJACK",
                 prefix=prefix_str,
@@ -155,7 +162,7 @@ class RuleBasedDetector:
         # 2. SUBPREFIX_HIJACK: More-specific of inventory prefix announced by unauthorized origin with Invalid/NotFound ROV
         elif is_more_specific and not origin_in_inventory and not rov_res.is_valid:
             candidate_alert = Alert(
-                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                alert_id=make_deterministic_alert_id(prefix_str, origin_asn, timestamp),
                 time=timestamp,
                 type="SUBPREFIX_HIJACK",
                 prefix=prefix_str,
@@ -170,7 +177,7 @@ class RuleBasedDetector:
         # 3. INVENTORY_MISMATCH: ROV Valid per RPKI ROA but origin is NOT registered in operator inventory
         elif inv_item is not None and not origin_in_inventory and rov_res.is_valid:
             candidate_alert = Alert(
-                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                alert_id=make_deterministic_alert_id(prefix_str, origin_asn, timestamp),
                 time=timestamp,
                 type="INVENTORY_MISMATCH",
                 prefix=prefix_str,
@@ -188,7 +195,7 @@ class RuleBasedDetector:
                 # Edge Case 1: Origin is in inventory allowed set, but ROV is Invalid (ROA lags policy change)
                 # Emit ROA_INVALID at medium severity; do not label as a hijack!
                 candidate_alert = Alert(
-                    alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                    alert_id=make_deterministic_alert_id(prefix_str, origin_asn, timestamp),
                     time=timestamp,
                     type="ROA_INVALID",
                     prefix=prefix_str,
@@ -201,7 +208,7 @@ class RuleBasedDetector:
                 )
             else:
                 candidate_alert = Alert(
-                    alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                    alert_id=make_deterministic_alert_id(prefix_str, origin_asn, timestamp),
                     time=timestamp,
                     type="ROA_INVALID",
                     prefix=prefix_str,
@@ -216,7 +223,7 @@ class RuleBasedDetector:
         # 5. THIRD_PARTY_INVALID: RFC 6811 Invalid on routes outside operator inventory
         elif inv_item is None and rov_res.is_invalid:
             candidate_alert = Alert(
-                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                alert_id=make_deterministic_alert_id(prefix_str, origin_asn, timestamp),
                 time=timestamp,
                 type="THIRD_PARTY_INVALID",
                 prefix=prefix_str,
@@ -231,7 +238,7 @@ class RuleBasedDetector:
         # 5. ROA_MISSING: Inventory-owned prefix announced with NotFound ROV state
         elif inv_item is not None and rov_res.is_not_found:
             candidate_alert = Alert(
-                alert_id=f"alt-{uuid.uuid4().hex[:8]}",
+                alert_id=make_deterministic_alert_id(prefix_str, origin_asn, timestamp),
                 time=timestamp,
                 type="ROA_MISSING",
                 prefix=prefix_str,

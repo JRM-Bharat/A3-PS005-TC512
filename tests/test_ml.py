@@ -562,6 +562,7 @@ class TestMLPipelineArtifacts:
 
         for plot_name in [
             "ml_roc_pr_curves.png",
+            "ml_pr_curve.png",
             "ml_feature_importances.png",
             "ml_leakage_audit_auc.png",
             "ml_baseline_hybrid_comparison.png",
