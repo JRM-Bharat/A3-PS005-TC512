@@ -46,8 +46,8 @@ def mini_ml_dataset(tmp_path_factory):
     tiny_cfg = {
         "system": {"project_name": "test-ml", "random_seed": 42},
         "paths": {
-            "inventory": "data/inventory.csv",
-            "roa_snapshots_dir": "data/roa_snapshots",
+            "inventory": "data/ml_inventory.csv",
+            "roa_snapshots_dir": "data/ml_roa_snapshots",
             "feed_replay": str(tmp_dir / "feed.csv"),
             "labels": str(tmp_dir / "labels.csv"),
             "manifest": str(tmp_dir / "manifest.json"),
@@ -418,8 +418,8 @@ class TestRollingHistory:
         from src.roa_store import ROAStore
 
         hist = RollingHistory()
-        inv = PrefixInventory.load_from_csv("data/inventory.csv")
-        store = ROAStore("data/roa_snapshots")
+        inv = PrefixInventory.load_from_csv("data/ml_inventory.csv")
+        store = ROAStore("data/ml_roa_snapshots")
 
         upd = self._make_update(1792978527.0, "8.8.8.0/24", 15169)
         feats = hist.compute_features(upd, inv, store)
@@ -436,8 +436,8 @@ class TestRollingHistory:
         from src.roa_store import ROAStore
 
         hist = RollingHistory()
-        inv = PrefixInventory.load_from_csv("data/inventory.csv")
-        store = ROAStore("data/roa_snapshots")
+        inv = PrefixInventory.load_from_csv("data/ml_inventory.csv")
+        store = ROAStore("data/ml_roa_snapshots")
 
         upd1 = self._make_update(1792978527.0, "8.8.8.0/24", 15169)
         upd2 = self._make_update(1792978627.0, "8.8.8.0/24", 15169)  # 100s later, same origin
@@ -455,8 +455,8 @@ class TestRollingHistory:
         from src.roa_store import ROAStore
 
         hist = RollingHistory()
-        inv = PrefixInventory.load_from_csv("data/inventory.csv")
-        store = ROAStore("data/roa_snapshots")
+        inv = PrefixInventory.load_from_csv("data/ml_inventory.csv")
+        store = ROAStore("data/ml_roa_snapshots")
 
         upd1 = self._make_update(1792978527.0, "8.8.8.0/24", 15169)
         upd2 = self._make_update(1792978627.0, "8.8.8.0/24", 99999)  # different origin
@@ -473,8 +473,8 @@ class TestRollingHistory:
         from src.roa_store import ROAStore
 
         hist = RollingHistory()
-        inv = PrefixInventory.load_from_csv("data/inventory.csv")
-        store = ROAStore("data/roa_snapshots")
+        inv = PrefixInventory.load_from_csv("data/ml_inventory.csv")
+        store = ROAStore("data/ml_roa_snapshots")
 
         base_t = 1792978527.0
         # Send 5 updates for same prefix within 30 min window
