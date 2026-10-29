@@ -1,0 +1,11 @@
+{
+  "metadata": {
+    "version": "v1_unscaled_dataset",
+    "description": "Initial ML baseline evaluation on unscaled dataset (8 forged-origin events in 24h) prior to 10x scale change in v2/v3",
+    "model_type": "GradientBoostingClassifier",
+    "dataset": "data/feed_replay.csv",
+    "total_forged_origin_events": 8
+  },
+  "note": "Preserved for audit trail per Phase 5 specifications alongside ml_metrics_v2_leaky.json."
+}
+
